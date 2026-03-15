@@ -1,6 +1,7 @@
-const emailQueue = require('./emailQueue');
-const nodemailer = require('nodemailer');
-require('dotenv').config();
+import emailQueue from './emailQueue.js';
+import nodemailer from 'nodemailer';
+import dotenv from 'dotenv';
+dotenv.config();
 
 // Configure the Nodemailer transporter (SMTP configuration)
 // It is recommended to use an SMTP service provider (SendGrid, Mailgun) or Ethereal for testing
@@ -39,3 +40,4 @@ emailQueue.process(async (job) => {
 emailQueue.on('completed', (job, result) => {
   console.log(`Job with id ${job.id} has been completed`);
 });
+

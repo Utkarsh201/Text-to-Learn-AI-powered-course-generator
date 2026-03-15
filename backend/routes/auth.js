@@ -1,7 +1,7 @@
-const express = require('express');
-const { requiresAuth } = require('express-openid-connect');
-const User = require('../models/User');
-const emailQueue = require('../services/emailQueue');
+import express from 'express';
+import { requiresAuth } from 'express-openid-connect';
+import User from '../models/User.js';
+import emailQueue from '../services/emailQueue.js';
 
 const router = express.Router();
 
@@ -46,4 +46,4 @@ router.get('/dashboard', requiresAuth(), (req, res) => {
   res.send('Welcome to the secure dashboard!');
 });
 
-module.exports = router;
+export default router;

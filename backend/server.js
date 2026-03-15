@@ -1,9 +1,13 @@
-const express = require('express');
-const cors = require('cors');
-const mongoose = require('mongoose');
-const { auth } = require('express-openid-connect');
-require('dotenv').config();
+import express from 'express';
+import cors from 'cors';
+import mongoose from 'mongoose';
+import { auth } from 'express-openid-connect';
+import dotenv from 'dotenv';
+import connectDB from './config/db.js';
+import './services/emailWorker.js';
+import authRoutes from './routes/auth.js';
 
+dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -19,9 +23,10 @@ const authConfig = {
 };
 
 // Database Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/auth-app')
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.error('MongoDB connection error:', err));
+connectDB().catch(err => {
+  console.error(err);
+  process.exit(1);
+});
 
 
 // CORS Configuration
@@ -40,11 +45,7 @@ app.use(express.urlencoded({ extended: true }));
 // auth router attaches /login, /logout, and /callback routes to the baseURL
 app.use(auth(authConfig));
 
-// Initialize Background Workers for Message Queues
-require('./services/emailWorker');
-
 // Import Auth Routes
-const authRoutes = require('./routes/auth');
 app.use('/api/auth', authRoutes);
 
 // Test Route
@@ -58,3 +59,7 @@ app.listen(PORT, () => {
 });
 
 
+
+
+
+// what are hte 
