@@ -12,8 +12,12 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "bull": "^4.16.5",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "express-openid-connect": "^2.19.4",
+    "mongoose": "^9.3.0",
+    "nodemailer": "^8.0.2"
   }
 }
