@@ -1,29 +1,40 @@
+// TODO: Have to use PostgreSQL (via Prisma) here — import Prisma Client to query/create users
 import express from 'express';
-import { requiresAuth } from 'express-openid-connect';
-import User from '../models/User.js';
+import { checkJwt } from '../middlewares/auth.js';
 import emailQueue from '../services/emailQueue.js';
 
 const router = express.Router();
 
-// The /login /logout /callback routes are automatically provided by express-openid-connect in server.js
-// We will set up a route that handles post-login logic (syncing user to DB)
-
-// Custom protected route to get profile and save to DB
-router.get('/profile', requiresAuth(), async (req, res) => {
+// Protected route to handle post-login logic (syncing user to DB)
+router.get('/profile', checkJwt, async (req, res) => {
   try {
-    const userInfo = req.oidc.user;
+    const token = req.headers.authorization.split(' ')[1];
     
-    // Find or create user in our DB
-    let user = await User.findOne({ auth0Id: userInfo.sub });
+    // Fetch user info from Auth0
+    const auth0Domain = process.env.AUTH0_ISSUER_BASE_URL;
+    const userinfoResponse = await fetch(`${auth0Domain}/userinfo`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    if (!userinfoResponse.ok) {
+        throw new Error('Failed to fetch userinfo from Auth0');
+    }
+    
+    const userInfo = await userinfoResponse.json();
+    
+    // TODO: Have to use PostgreSQL here — replace User.findOne() with Prisma: prisma.user.findUnique({ where: { auth0Id: userInfo.sub } })
+    let user = null; // was: await User.findOne({ auth0Id: userInfo.sub });
     
     if (!user) {
-      user = new User({
+      // TODO: Have to use PostgreSQL here — replace new User().save() with Prisma: prisma.user.create({ data: { auth0Id, email, name, picture } })
+      user = {
         auth0Id: userInfo.sub,
         email: userInfo.email,
         name: userInfo.name || userInfo.nickname || 'User',
         picture: userInfo.picture
-      });
-      await user.save();
+      }; // was: new User({...}); await user.save();
       
       // Add a job to send the welcome email via Redis queue
       // This happens asynchronously in the background
@@ -42,7 +53,7 @@ router.get('/profile', requiresAuth(), async (req, res) => {
 });
 
 // A protected route example
-router.get('/dashboard', requiresAuth(), (req, res) => {
+router.get('/dashboard', checkJwt, (req, res) => {
   res.send('Welcome to the secure dashboard!');
 });
 

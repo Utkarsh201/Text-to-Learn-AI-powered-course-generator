@@ -1,28 +1,3 @@
-import mongoose from 'mongoose';
-
-const userSchema = new mongoose.Schema({
-  auth0Id: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  name: {
-    type: String,
-    required: true
-  },
-  picture: {
-    type: String,
-    default: ''
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
-
-export default mongoose.model('User', userSchema);
+// TODO: Have to use PostgreSQL (via Prisma) here — define User model in prisma/schema.prisma instead of this file
+// The User model (auth0Id, email, name, picture, createdAt) should be defined in the Prisma schema
+// and accessed via Prisma Client. This mongoose model file can be removed once Prisma is fully set up.
