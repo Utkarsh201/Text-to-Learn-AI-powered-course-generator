@@ -1,5 +1,6 @@
 node_modules
 .env
-
+.md
 temp.js
 /generated/prisma
+.txt
