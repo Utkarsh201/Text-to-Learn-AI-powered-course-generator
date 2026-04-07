@@ -51,5 +51,3 @@ Follow this guide step-by-step. Ask me for help when you are ready to tackle eac
 - Database shifted from MongoDB to **PostgreSQL with Prisma** for better typing and relational integrity.
 - Hugging Face used for AI outputs, handled asynchronously via **Redis/Bull queues**.
 - Client requests a course, goes about their business, and is emailed when it's structurally ready in the DB.
-
-*Whenever you are ready, say "Let's start Step 1" and I will help you write the code for the Prisma schema!*
