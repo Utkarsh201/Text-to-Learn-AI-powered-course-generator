@@ -38,7 +38,13 @@ app.get('/api/test', async (req, res) => {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ message: 'Backend is connected!', database: 'PostgreSQL connected via Prisma' });
   } catch (error) {
-    res.json({ message: 'Backend is running but database is not connected', error: error.message });
+    const response = { message: 'Backend is running but database is not connected' };
+
+    if (process.env.NODE_ENV !== 'production') {
+      response.error = error.message;
+    }
+
+    res.status(500).json(response);
   }
 });
 
