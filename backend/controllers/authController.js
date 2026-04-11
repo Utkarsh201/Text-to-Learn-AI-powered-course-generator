@@ -16,11 +16,17 @@ const getBearerToken = (req) => {
 
 const fetchAuth0UserInfo = async (token) => {
   const auth0Domain = process.env.AUTH0_ISSUER_BASE_URL;
-  const userinfoResponse = await fetch(`${auth0Domain}/userinfo`, {
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  });
+  let userinfoResponse;
+  try {
+    userinfoResponse = await fetch(`${auth0Domain}/userinfo`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+  } catch (fetchError) {
+    console.error('Network error reaching Auth0:', fetchError.message);
+    throw new Error('Could not reach Auth0 servers to verify user');
+  }
 
   if (!userinfoResponse.ok) {
     const errorBody = await userinfoResponse.text();
@@ -45,24 +51,35 @@ export const loginUser = async (req, res) => {
     } catch (authError) {
       return res.status(401).json({ error: authError.message });
     }
-    // Upsert user — create if new, update if existing
-    const user = await prisma.user.upsert({
-      where: { auth0Id: userInfo.sub },
-      update: {
-        email: userInfo.email,
-        name: userInfo.name || userInfo.nickname || 'User',
-        picture: userInfo.picture
-      },
-      create: {
-        auth0Id: userInfo.sub,
-        email: userInfo.email,
-        name: userInfo.name || userInfo.nickname || 'User',
-        picture: userInfo.picture
-      }
+    // Check if user exists to definitively know if they are new
+    let user = await prisma.user.findUnique({
+      where: { auth0Id: userInfo.sub }
     });
 
-    // Check if this was a newly created user (createdAt === updatedAt within 1 second)
-    const isNewUser = Math.abs(user.createdAt.getTime() - user.updatedAt.getTime()) < 1000;
+    let isNewUser = false;
+
+    if (!user) {
+      // User doesn't exist, create them
+      user = await prisma.user.create({
+        data: {
+          auth0Id: userInfo.sub,
+          email: userInfo.email,
+          name: userInfo.name || userInfo.nickname || 'User',
+          picture: userInfo.picture
+        }
+      });
+      isNewUser = true;
+    } else {
+      // User exists, update them
+      user = await prisma.user.update({
+        where: { auth0Id: userInfo.sub },
+        data: {
+          email: userInfo.email,
+          name: userInfo.name || userInfo.nickname || 'User',
+          picture: userInfo.picture
+        }
+      });
+    }
 
     // Send welcome email only for brand new users (if email queue is available)
     if (isNewUser && emailQueue) {
@@ -103,11 +120,17 @@ export const getUserProfile = async (req, res) => {
 
     // Fetch user info from Auth0
     const auth0Domain = process.env.AUTH0_ISSUER_BASE_URL;
-    const userinfoResponse = await fetch(`${auth0Domain}/userinfo`, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
+    let userinfoResponse;
+    try {
+      userinfoResponse = await fetch(`${auth0Domain}/userinfo`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+    } catch (fetchError) {
+      console.error('Network error reaching Auth0:', fetchError.message);
+      return res.status(502).json({ error: 'Could not reach Auth0 servers to verify user' });
+    }
 
     if (!userinfoResponse.ok) {
       return res.status(401).json({ error: 'Failed to verify user with Auth0' });
