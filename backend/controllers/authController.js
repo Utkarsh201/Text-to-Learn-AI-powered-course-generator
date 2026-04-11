@@ -9,30 +9,42 @@ try {
   console.warn('Email queue not available (Redis not running). Welcome emails will be skipped.');
 }
 
+const getBearerToken = (req) => {
+  const [scheme, token] = req.headers.authorization?.split(' ') || [];
+  return scheme === 'Bearer' ? token : null;
+};
+
+const fetchAuth0UserInfo = async (token) => {
+  const auth0Domain = process.env.AUTH0_ISSUER_BASE_URL;
+  const userinfoResponse = await fetch(`${auth0Domain}/userinfo`, {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  });
+
+  if (!userinfoResponse.ok) {
+    const errorBody = await userinfoResponse.text();
+    console.error('Auth0 /userinfo failed:', userinfoResponse.status, errorBody);
+    throw new Error('Failed to verify user with Auth0');
+  }
+
+  return userinfoResponse.json();
+};
+
 // Logic for POST /api/auth/login
 export const loginUser = async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
+    const token = getBearerToken(req);
     if (!token) {
       return res.status(401).json({ error: 'No token provided' });
     }
 
-    // Fetch user info from Auth0's /userinfo endpoint
-    const auth0Domain = process.env.AUTH0_ISSUER_BASE_URL;
-    const userinfoResponse = await fetch(`${auth0Domain}/userinfo`, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-
-    if (!userinfoResponse.ok) {
-      const errorBody = await userinfoResponse.text();
-      console.error('Auth0 /userinfo failed:', userinfoResponse.status, errorBody);
-      return res.status(401).json({ error: 'Failed to verify user with Auth0' });
+    let userInfo;
+    try {
+      userInfo = await fetchAuth0UserInfo(token);
+    } catch (authError) {
+      return res.status(401).json({ error: authError.message });
     }
-
-    const userInfo = await userinfoResponse.json();
-
     // Upsert user — create if new, update if existing
     const user = await prisma.user.upsert({
       where: { auth0Id: userInfo.sub },
