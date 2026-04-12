@@ -6,6 +6,9 @@ dotenv.config();
 
 const PORT = process.env.PORT || 5000;
 
+// prisma connection is automatic 
+// by default the Prisma will establish connection lazily.
+
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\nGracefully shutting down (Ctrl-C)... Disconnecting from database.');

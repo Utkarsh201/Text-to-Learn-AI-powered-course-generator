@@ -17,14 +17,19 @@ const app = express();
 // CORS Configuration
 const corsOptions = {
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  // Setting credentials: true tells the browser: "It is safe to send cookies, authorization headers, or TLS client certificates back and forth with this specific backend.
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
+  // authorization is to send the berar token to the backend
+  // content-type is to tell the backend what type of content
 };
 
 // Middleware
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// express.urlencoded() parses incoming requests where the payload is formatted as a URL-encoded string
 app.use(express.urlencoded({ extended: true }));
 
 // API Routes
@@ -49,6 +54,8 @@ app.get('/api/test', async (req, res) => {
 });
 
 // 404 Not Found Middleware - Catch all unknown routes
+
+// if doesnot matches any routes it will fallback here and will throw an error 
 app.use((req, res, next) => {
   res.status(404).json({ error: 'Not Found', message: `Route ${req.originalUrl} does not exist` });
 });
