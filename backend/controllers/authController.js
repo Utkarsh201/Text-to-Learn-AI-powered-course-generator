@@ -1,15 +1,17 @@
 import prisma from '../utils/prisma.js';
 
 // Dynamically import emailQueue — it requires Redis, so we make it optional
-let emailQueue = null;
-try {
-  const module = await import('../services/emailQueue.js');
-  emailQueue = module.default;
-} catch (err) {
-  console.warn('Email queue not available (Redis not running). Welcome emails will be skipped.');
-}
+// let emailQueue = null;
+// try {
+//   const module = await import('../services/emailQueue.js');
+//   emailQueue = module.default;
+// } catch (err) {
+//   console.warn('Email queue not available (Redis not running). Welcome emails will be skipped.');
+// }
 
 const getBearerToken = (req) => {
+  // it generally looks like this
+  // Authorization: Bearer <your_auth0_access_token>
   const [scheme, token] = req.headers.authorization?.split(' ') || [];
   return scheme === 'Bearer' ? token : null;
 };
@@ -18,7 +20,9 @@ const fetchAuth0UserInfo = async (token) => {
   const auth0Domain = process.env.AUTH0_ISSUER_BASE_URL;
   let userinfoResponse;
   try {
+    // this is making an http request to the auth0 server to get the user info
     userinfoResponse = await fetch(`${auth0Domain}/userinfo`, {
+      // here we are attaching the header (ID card of the user)
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -33,7 +37,7 @@ const fetchAuth0UserInfo = async (token) => {
     console.error('Auth0 /userinfo failed:', userinfoResponse.status, errorBody);
     throw new Error('Failed to verify user with Auth0');
   }
-
+  // convert the data into json 
   return userinfoResponse.json();
 };
 
@@ -49,12 +53,24 @@ export const loginUser = async (req, res) => {
     try {
       userInfo = await fetchAuth0UserInfo(token);
     } catch (authError) {
+      console.log("error in fetching user info from auth0");
       return res.status(401).json({ error: authError.message });
     }
     // Check if user exists to definitively know if they are new
     let user = await prisma.user.findUnique({
       where: { auth0Id: userInfo.sub }
+      // .sub is a unique id that auth0 gives to the every user
     });
+
+    // this user looks something like this 
+    // {
+    //   "sub": "google-oauth2|117382910293847561234",
+    //     "name": "Utkarsh Sharma",
+    //       "email": "utkarsh@example.com",
+    //         "picture": "https://lh3.googleusercontent.com/..."
+    // }
+
+
 
     let isNewUser = false;
 
@@ -73,6 +89,7 @@ export const loginUser = async (req, res) => {
       // User exists, update them
       user = await prisma.user.update({
         where: { auth0Id: userInfo.sub },
+        // if the user is same we only update the fresh data of email, name and profile picture
         data: {
           email: userInfo.email,
           name: userInfo.name || userInfo.nickname || 'User',
@@ -82,16 +99,16 @@ export const loginUser = async (req, res) => {
     }
 
     // Send welcome email only for brand new users (if email queue is available)
-    if (isNewUser && emailQueue) {
-      try {
-        await emailQueue.add({
-          email: user.email,
-          name: user.name
-        });
-      } catch (emailErr) {
-        console.warn('Failed to queue welcome email:', emailErr.message);
-      }
-    }
+    // if (isNewUser && emailQueue) {
+    //   try {
+    //     await emailQueue.add({
+    //       email: user.email,
+    //       name: user.name
+    //     });
+    //   } catch (emailErr) {
+    //     console.warn('Failed to queue welcome email:', emailErr.message);
+    //   }
+    // }
 
     res.json({
       message: isNewUser ? 'New user created and synced' : 'Existing user synced',
@@ -147,6 +164,7 @@ export const getUserProfile = async (req, res) => {
       return res.status(404).json({ error: 'User not found. Please login first.' });
     }
 
+    console.log("Found the user and returning the profile");
     res.json({ user });
   } catch (error) {
     console.error('Error in /api/auth/profile:', error);
