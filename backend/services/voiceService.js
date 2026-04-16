@@ -46,7 +46,9 @@ export const transcribeAudio = async (audioBuffer) => {
       throw new Error('Transcription completed but no text was returned.');
     }
 
-    console.log(`Transcription successful: "${text.slice(0, 50)}..."`);
+    if (process.env.NODE_ENV !== 'production' && process.env.DEBUG_VOICE_TRANSCRIPTION === 'true') {
+      console.log(`Transcription successful. Transcript length: ${text.length} characters.`);
+    }
     return { text };
   } catch (error) {
     console.error('Hugging Face transcription error:', error.message);
