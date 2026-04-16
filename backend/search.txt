@@ -1,0 +1,337 @@
+Implementation Plan: Hugging Face Powered Course Builder (No Code Yet)
+
+Goal
+Build a feature where user input is converted into a small structured course with:
+1) Chapters and lessons based on selected depth
+2) External video references
+3) Lesson-level quizzes
+4) Multilingual support across generation and output
+
+--------------------------------------------------
+1. Product Scope and User Flow
+--------------------------------------------------
+User flow:
+1. User enters topic (example: "Learn Python for data analysis")
+2. User selects course depth
+   - Beginner
+   - Intermediate
+   - Advanced
+   - Custom (optional future phase)
+3. User selects preferred language
+4. System generates:
+   - course title and summary
+   - chapter list
+   - lesson content per chapter
+   - external video references for each lesson/chapter
+   - quiz questions for each lesson
+5. User can regenerate specific parts (chapter, videos, quiz) without regenerating everything
+
+Depth behavior:
+- Beginner: fewer chapters, shorter lessons, basic quizzes
+- Intermediate: moderate chapters, practical examples, medium quiz difficulty
+- Advanced: deeper chapters, more nuanced content, harder quizzes and scenario-based questions
+
+--------------------------------------------------
+2. Architecture Plan
+--------------------------------------------------
+Backend services to introduce:
+1. Course Orchestrator Service
+   - Coordinates chapter generation, lesson generation, references, and quizzes
+2. LLM Generation Service (Hugging Face)
+   - Handles text generation prompts and structured JSON output
+3. Video Reference Service
+   - Converts lesson intent into search queries and maps to approved external platforms
+4. Quiz Generation Service
+   - Generates and validates question quality and answer keys
+5. Translation/Localization Service
+   - Handles multilingual generation and translation fallback
+6. Validation Layer
+   - Validates schema and content completeness before returning response
+
+Execution strategy:
+- Use staged pipeline (not single giant prompt)
+- Save intermediate artifacts so partial regeneration is possible
+- Add retry logic for transient model/API failures
+
+--------------------------------------------------
+3. Hugging Face Model Strategy
+--------------------------------------------------
+Primary tasks needed:
+1. Text generation for course/chapter/lesson/quiz
+2. Optional translation for multilingual output
+3. Optional embeddings/classification for quality checks and relevance checks
+
+Recommended model routing approach:
+- Primary instruction model (course and lesson authoring)
+- Secondary model or same model for quiz creation
+- Translation model for language conversion when direct multilingual generation quality is weak
+
+Model abstraction requirement:
+- Do not hardcode model usage inside business logic
+- Add a model registry/config:
+  - model_for_course_generation
+  - model_for_quiz_generation
+  - model_for_translation
+- This allows easy swapping if quality/cost changes
+
+Prompting strategy:
+- Strict structured prompts requiring JSON output
+- Include constraints by depth and language
+- Include forbidden behaviors (hallucinated links, unsafe content)
+
+--------------------------------------------------
+4. Data Contracts (API and Schema)
+--------------------------------------------------
+A) Course generation request
+- topic: string
+- depth: enum (beginner | intermediate | advanced)
+- language: ISO code (en, hi, es, etc.)
+- targetDurationHours: optional number
+- learningGoal: optional string
+
+B) Course generation response shape
+- courseId
+- topic
+- language
+- depth
+- title
+- description
+- estimatedDuration
+- chapters: [
+  {
+    chapterId,
+    title,
+    objective,
+    lessons: [
+      {
+        lessonId,
+        title,
+        content,
+        keyTakeaways: [],
+        videoReferences: [
+          {
+            title,
+            platform,
+            url,
+            reason,
+            confidence
+          }
+        ],
+        quiz: {
+          questions: [
+            {
+              type,
+              question,
+              options: [],
+              answer,
+              explanation,
+              difficulty
+            }
+          ]
+        }
+      }
+    ]
+  }
+]
+
+C) Internal persistence entities (planned)
+- courses
+- chapters
+- lessons
+- lesson_references
+- quizzes
+- quiz_questions
+- generation_runs (for observability/debug)
+
+--------------------------------------------------
+5. Course Generation Pipeline
+--------------------------------------------------
+Step 1: Topic normalization
+- Clean and normalize input
+- Detect domain/category (programming, math, language learning, etc.)
+
+Step 2: Blueprint generation
+- Generate course title, summary, chapter outline based on depth
+- Enforce min/max chapter count by depth
+
+Step 3: Lesson generation
+- Generate lessons per chapter with concise, teachable structure
+- Include examples and practical tasks appropriate to depth
+
+Step 4: Video reference generation
+- Generate search queries per lesson
+- Retrieve and rank references from approved platforms
+- Attach reason for recommendation and confidence
+
+Step 5: Quiz generation
+- Generate quiz per lesson with balanced difficulty
+- Include answer key and explanation
+- Validate question quality (non-ambiguous, aligned to lesson)
+
+Step 6: Multilingual pass
+- If language != default model language:
+  - Either generate directly in target language
+  - Or generate in base language and translate
+- Run terminology consistency checks
+
+Step 7: Final validation
+- Validate schema completeness
+- Validate link format and platform allowlist
+- Validate quiz answer presence
+
+--------------------------------------------------
+6. Video Reference Plan (External Websites)
+--------------------------------------------------
+Platform strategy:
+- Start with allowlisted platforms (example: YouTube, free course portals)
+- Keep a source policy file for trusted domains
+
+Reference generation flow:
+1. Build high-quality search query from lesson objective
+2. Fetch top N candidates from external search/API source
+3. Score by relevance and educational intent
+4. Return top K references with metadata
+
+Safety/quality guardrails:
+- Reject non-educational or suspicious domains
+- Remove duplicates
+- Prefer recent and high-signal resources where possible
+
+--------------------------------------------------
+7. Quiz Generation Plan
+--------------------------------------------------
+Question types per depth:
+- Beginner: mostly MCQ + true/false
+- Intermediate: MCQ + short conceptual questions
+- Advanced: scenario/problem-solving questions
+
+Quiz constraints:
+- Each question must map to a lesson objective
+- Include explanation for correct answer
+- Avoid trick questions unless advanced mode explicitly requires challenge
+
+Quality checks:
+- No duplicate questions
+- No conflicting correct answers
+- Difficulty tag per question
+
+--------------------------------------------------
+8. Multilingual Plan
+--------------------------------------------------
+Language support strategy:
+- Request includes `language`
+- System stores canonical language and translated outputs
+
+Two generation modes:
+1) Direct generation in target language
+2) Generate in base language and translate
+
+Fallback logic:
+- If direct generation quality is low, switch to base+translate
+- Add glossary for key technical terms so translation stays consistent
+
+Voice input compatibility (future integration):
+- Reuse existing voice transcription pipeline
+- Detect language from transcription metadata
+- Use detected language as default course language unless user overrides
+
+--------------------------------------------------
+9. Reliability, Cost, and Performance Plan
+--------------------------------------------------
+Reliability:
+- Timeout + retry with backoff for model calls
+- Circuit breaker for repeated provider failures
+- Partial-save and resume if pipeline fails mid-way
+
+Performance:
+- Parallelize independent operations (video refs + quiz generation)
+- Cache repeated topic requests (topic + depth + language hash)
+
+Cost controls:
+- Token budget by depth
+- Limit chapter and lesson lengths
+- Optional "fast mode" using smaller model config
+
+--------------------------------------------------
+10. Security and Content Safety Plan
+--------------------------------------------------
+Security:
+- Validate and sanitize all user inputs
+- Enforce auth on generation endpoints
+- Rate limit heavy generation endpoints
+
+Safety:
+- Basic moderation pass on generated content
+- Block unsafe/off-topic outputs
+- Log policy violations for monitoring
+
+--------------------------------------------------
+11. Observability and Evaluation Plan
+--------------------------------------------------
+Logging/metrics:
+- generation_duration_ms
+- tokens_input/output (if available)
+- failure_rate by pipeline step
+- retry_count
+- per-model success/failure metrics
+
+Quality evaluation checklist:
+- Chapter coherence
+- Lesson readability per depth
+- Quiz correctness
+- Video relevance score
+- Translation quality and terminology consistency
+
+Manual review process (early phases):
+- Review 20-50 generated courses across domains and languages
+- Capture failure patterns and update prompts/validation rules
+
+--------------------------------------------------
+12. Implementation Phases
+--------------------------------------------------
+Phase 1 (MVP)
+- Generate chapters + lessons from topic and depth
+- Single language (default)
+- Basic quiz generation
+- Static external video query generation (or minimal retrieval)
+
+Phase 2
+- Add multilingual support (direct + translation fallback)
+- Add improved video retrieval and ranking
+- Add structured validation and regeneration endpoints
+
+Phase 3
+- Add advanced quiz tuning and adaptive depth behavior
+- Add caching, detailed observability dashboards, and cost optimization
+- Add voice-input-to-course flow integration
+
+--------------------------------------------------
+13. Acceptance Criteria
+--------------------------------------------------
+Functional:
+- User gets a complete course with chapters, lessons, references, and quizzes
+- Depth selection clearly changes output complexity
+- Language selection returns usable output in target language
+
+Quality:
+- At least 90% of generated responses pass schema validation
+- Quiz must include answer + explanation for every question
+- Video references must belong to allowlisted domains
+
+Operational:
+- Pipeline handles retries and returns meaningful errors
+- Average generation time remains within acceptable product threshold
+
+--------------------------------------------------
+14. Immediate Next Steps (Execution Checklist)
+--------------------------------------------------
+1. Finalize request/response schema for course generation
+2. Define depth constraints (chapter count, lesson length, quiz size)
+3. Finalize Hugging Face model registry configuration
+4. Implement orchestrator pipeline with staged generation
+5. Add validation layer and regeneration endpoints
+6. Add multilingual mode and fallback strategy
+7. Add video retrieval/ranking with allowlist
+8. Add observability metrics and QA checklist
+9. Run pilot testing across 3+ languages and multiple topics
+10. Tune prompts and scoring rules based on pilot results

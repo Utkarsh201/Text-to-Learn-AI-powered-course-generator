@@ -1,3 +1,5 @@
+import { transcribeAudio } from '../services/voiceService.js';
+
 // Logic for handling the search bar requests
 export const handleTextSearch = async (req, res) => {
     // Create an AbortController tied to this request
@@ -33,6 +35,7 @@ export const handleTextSearch = async (req, res) => {
 };
 
 // Logic for handling the voice chat/search requests
+// The audio file arrives via multer middleware (req.file) as a Buffer in memory
 export const handleVoiceSearch = async (req, res) => {
     // Create an AbortController tied to this request
     const abortController = new AbortController();
@@ -43,16 +46,26 @@ export const handleVoiceSearch = async (req, res) => {
     });
 
     try {
-        // TODO: Implement the actual voice logic here
-        // Pass abortController.signal to any fetch() or long-running operation, e.g.:
-        // const result = await fetch('https://api.example.com/voice', {
-        //     signal: abortController.signal
-        // });
+        // Validate that an audio file was actually uploaded
+        if (!req.file) {
+            return res.status(400).json({
+                error: 'No audio file provided',
+                message: 'Please send an audio file in the "audio" form field'
+            });
+        }
+
+        console.log(`Received audio file: ${req.file.originalname}, size: ${req.file.size} bytes, type: ${req.file.mimetype}`);
+
+        // Send the audio buffer to Hugging Face Whisper for transcription
+        const result = await transcribeAudio(req.file.buffer);
 
         // Guard: don't send a response if the client already disconnected
         if (abortController.signal.aborted) return;
 
-        res.status(200).json({ message: "Voice chat logic is ready to be implemented!" });
+        res.status(200).json({
+            text: result.text,
+            message: 'Voice transcribed successfully'
+        });
     } catch (error) {
         // If the error is because the client disconnected, just log and exit
         if (error.name === 'AbortError') {
@@ -61,7 +74,10 @@ export const handleVoiceSearch = async (req, res) => {
         }
         console.error('Error in voice search:', error);
         if (!res.headersSent) {
-            res.status(500).json({ error: 'Internal Server Error' });
+            res.status(500).json({
+                error: 'Failed to transcribe audio',
+                message: error.message
+            });
         }
     }
 };
