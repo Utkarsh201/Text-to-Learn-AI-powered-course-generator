@@ -94,7 +94,10 @@ const courseWorker = new Worker(
           });
         }
 
-        const chapterCount = await prisma.chapter.count({ where: { courseId } });
+        const expectedChapterCount = job.data.expectedChapterCount;
+        const chapterCount = Number.isInteger(expectedChapterCount)
+          ? expectedChapterCount
+          : await prisma.chapter.count({ where: { courseId } });
         const chaptersWithLessons = await prisma.chapter.findMany({
           where: { courseId },
           include: { lessons: true },
