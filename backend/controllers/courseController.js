@@ -55,9 +55,9 @@ export const generateCourse = async (req, res) => {
       return res.status(400).json({ error: 'options must be an object.' });
     }
 
-    const includeQuizzes = safeOptions.quiz ?? false;
-    const includePdfDownload = safeOptions.pdf ?? false;
-    const includeVideoReferences = safeOptions.videoReferences ?? false;
+    const includeQuizzes = safeOptions.quiz ?? true;
+    const includePdfDownload = safeOptions.pdf ?? true;
+    const includeVideoReferences = safeOptions.videoReferences ?? true;
 
     if (typeof includeQuizzes !== 'boolean') {
       return res.status(400).json({ error: 'options.quiz must be true or false.' });
