@@ -48,6 +48,7 @@ const courseWorker = new Worker(
               generationRunId,
               courseId,
               chapterId: createdChapter.id,
+              expectedChapterCount: outline.length,
               topic,
               chapterTitle: chapter.title,
               chapterObjective: chapter.objective,
