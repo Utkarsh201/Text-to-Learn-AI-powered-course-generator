@@ -1,13 +1,8 @@
-import dotenv from 'dotenv';
+import 'dotenv/config';
 import app from './app.js';
 import prisma from './utils/prisma.js';
 import courseQueue from './services/courseQueue.js';
-
-dotenv.config();
-
-// Initialize background worker listeners
 import courseWorker from './services/courseWorker.js';
-
 
 const PORT = process.env.PORT || 5000;
 
