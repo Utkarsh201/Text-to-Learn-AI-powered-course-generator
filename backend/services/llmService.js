@@ -3,7 +3,8 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const hf = new InferenceClient(process.env.HF_ACCESS_TOKEN);
+const hfToken = process.env.HF_ACCESS_TOKEN;
+const hf = hfToken ? new InferenceClient(hfToken) : null;
 const DEFAULT_TEXT_MODELS = [
   "mistralai/Mistral-7B-Instruct-v0.3",
   "mistral-community/Mistral-7B-Instruct-v0.3",
