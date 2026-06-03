@@ -22,8 +22,11 @@ const isModelUnavailableError = (error) => {
 };
 
 const createChatCompletion = async (messages, options = {}) => {
-  let lastModelError;
+  if (!hf) {
+    throw new Error('HF_ACCESS_TOKEN is missing. Add it to backend/.env before using LLM text generation.');
+  }
 
+  let lastModelError;
   for (const model of HF_TEXT_MODELS) {
     try {
       return await hf.chatCompletion({
