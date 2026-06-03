@@ -55,7 +55,7 @@ const createChatCompletion = async (messages, options = {}) => {
  */
 export const generateCourseOutline = async (topic, depth) => {
   const systemPrompt = `You are an expert curriculum designer. 
-Your MUST generate a course syllabus for a ${depth} level course on "${topic}".
+You MUST generate a course syllabus for a ${depth} level course on "${topic}".
 You MUST respond with ONLY valid JSON and nothing else. No markdown wrappers, no intro text.
 The desired output format is a JSON array of objects representing chapters:
 [
