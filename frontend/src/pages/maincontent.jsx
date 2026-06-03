@@ -1,5 +1,3 @@
-import React from "react";
-
 export default function MainContent() {
   return (
     <div className="bg-background text-on-surface antialiased min-h-screen flex selection:bg-tertiary-fixed selection:text-on-tertiary-fixed">
