@@ -42,9 +42,13 @@ const VoiceRecorder = ({ onTranscription, onError, getToken }) => {
         ? 'audio/webm;codecs=opus'
         : MediaRecorder.isTypeSupported('audio/webm')
           ? 'audio/webm'
-          : 'audio/mp4';
+          : MediaRecorder.isTypeSupported('audio/mp4')
+            ? 'audio/mp4'
+            : ''; // If nothing matches, leave it blank so the browser picks its default
 
-      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      // Only pass the mimeType option if we successfully found a supported one
+      const options = mimeType ? { mimeType } : {};
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
