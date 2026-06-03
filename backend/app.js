@@ -5,7 +5,8 @@ import dotenv from 'dotenv';
 // Import Routes
 import authRoutes from './routes/auth.js';
 import searchRoutes from './routes/search.js';
-import prisma from './utils/prisma.js'; 
+import courseRoutes from './routes/course.js';
+import prisma from './utils/prisma.js';
 
 // Import Error Handler
 import { errorHandler } from './middlewares/errorHandler.js';
@@ -35,6 +36,7 @@ app.use(express.urlencoded({ extended: true }));
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/courses', courseRoutes);
 
 // Health check route
 app.get('/api/test', async (req, res) => {
@@ -48,7 +50,7 @@ app.get('/api/test', async (req, res) => {
     if (process.env.NODE_ENV !== 'production') {
       response.error = error.message;
     }
-
+    
     res.status(500).json(response);
   }
 });

@@ -13,12 +13,132 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Enums
+enum CourseLanguage {
+  ENGLISH
+  HINDI
+}
+
+enum CourseDepth {
+  OVERVIEW
+  BASIC
+  DETAILED
+}
+
+// this is to mark the status of the course we want to create.
+enum RunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+// Models
 model User {
+  id             String          @id @default(cuid())
+  auth0Id        String          @unique
+  email          String          @unique
+  name           String
+  picture        String?
+  courses        Course[]
+  generationRuns GenerationRun[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model Course {
+  id                     String         @id @default(cuid())
+  userId                 String
+  user                   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic                  String
+  language               CourseLanguage @default(ENGLISH)
+  depth                  CourseDepth
+  includeVideoReferences Boolean        @default(true) // Snapshot of user choice at generation time
+  includeQuizzes         Boolean        @default(true) // Snapshot of user choice at generation time
+  includePdfDownload     Boolean        @default(true) // Snapshot of user choice at generation time
+  title                  String?
+  description            String?
+  estimatedDuration      Float? // in hours
+  chapters               Chapter[]
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+}
+
+model Chapter {
   id        String   @id @default(cuid())
-  auth0Id   String   @unique
-  email     String   @unique
-  name      String
-  picture   String?
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title     String
+  objective String?
+  order     Int // to maintain sequence
+  lessons   Lesson[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Lesson {
+  id              String           @id @default(cuid())
+  chapterId       String
+  chapter         Chapter          @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  title           String
+  content         String           @db.Text
+  keyTakeaways    String[] // Postges supports string arrays
+  order           Int // to maintain sequence
+  videoReferences VideoReference[]
+  quiz            Quiz?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model VideoReference {
+  id         String   @id @default(cuid())
+  lessonId   String
+  lesson     Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  title      String
+  platform   String
+  url        String
+  reason     String?  @db.Text
+  confidence Float?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Quiz {
+  id        String         @id @default(cuid())
+  lessonId  String         @unique
+  lesson    Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions QuizQuestion[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model QuizQuestion {
+  id          String   @id @default(cuid())
+  quizId      String
+  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  type        String // e.g., MCQ, True/False, Scenario
+  question    String   @db.Text
+  options     String[] // User answer choices
+  answer      String // Correct answer
+  explanation String?  @db.Text // explanation for correct answer
+  difficulty  String? // Beginner, Intermediate, Advanced
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// this is for the current status if the course is generated or not
+model GenerationRun {
+  id                     String         @id @default(cuid())
+  userId                 String // The user who initiated the run
+  user                   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status                 RunStatus      @default(PENDING)
+  topic                  String
+  depth                  CourseDepth
+  language               CourseLanguage @default(ENGLISH)
+  includeVideoReferences Boolean        @default(true) // Used by orchestrator to skip/reference step
+  includeQuizzes         Boolean        @default(true) // Used by orchestrator to skip/quiz step
+  includePdfDownload     Boolean        @default(true) // Used by orchestrator to skip/pdf generation step
+  error                  String?        @db.Text
+  startedAt              DateTime       @default(now())
+  completedAt            DateTime?
 }
