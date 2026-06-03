@@ -1,6 +1,4 @@
-import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
-import HomePage from "./pages/homepage";
 import CourseSettingsPopup from "./pages/popup";
 import { useState } from "react";
 
