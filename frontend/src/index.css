@@ -87,7 +87,7 @@ body {
 
 /* ── Editorial Typography ── */
 .editorial-content p {
-  margin-bottom: 2rem;
+  margin: 0;
 }
 
 .editorial-content p:first-of-type::first-letter {
