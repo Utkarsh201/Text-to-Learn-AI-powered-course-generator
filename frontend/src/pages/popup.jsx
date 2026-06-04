@@ -113,7 +113,7 @@ export default function CourseSettingsPopup({ isOpen, onClose, onGenerate }) {
                 {["yes", "no"].map((val) => (
                   <label key={val} className="flex-1 cursor-pointer">
                     <input
-                      className="hidden peer"
+                      className="sr-only peer"
                       type="radio"
                       name="video"
                       value={val}
