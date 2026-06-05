@@ -60,6 +60,7 @@ model Course {
   description            String?
   estimatedDuration      Float? // in hours
   chapters               Chapter[]
+  generationRun          GenerationRun?
   createdAt              DateTime       @default(now())
   updatedAt              DateTime       @updatedAt
 }
@@ -131,6 +132,8 @@ model GenerationRun {
   id                     String         @id @default(cuid())
   userId                 String // The user who initiated the run
   user                   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId               String?        @unique
+  course                 Course?        @relation(fields: [courseId], references: [id], onDelete: SetNull)
   status                 RunStatus      @default(PENDING)
   topic                  String
   depth                  CourseDepth
