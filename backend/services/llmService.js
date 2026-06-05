@@ -127,9 +127,14 @@ estimatedDuration is in hours. Base it on the depth level and number of chapters
       console.error(`[LLM] Error parsing estimatedDuration:`, error);
     }
 
+    const title =
+      typeof parsed.title === "string" && parsed.title.trim() ? parsed.title.trim() : null;
+    const description =
+      typeof parsed.description === "string" && parsed.description.trim() ? parsed.description.trim() : null;
+
     return {
-      title: parsed.title || null,
-      description: parsed.description || null,
+      title,
+      description,
       estimatedDuration: duration,
       chapters: parsed.chapters,
     };
