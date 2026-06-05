@@ -5,7 +5,7 @@ export default function MainContent() {
       <aside className="fixed left-0 top-0 h-full w-64 bg-surface-container-low flex flex-col py-8 z-30 shadow-[40px_0_40px_-15px_rgba(0,0,0,0.5)]">
         {/* Logo Header */}
         <div className="px-6 mb-12">
-          <h1 className="font-display text-2xl font-black tracking-[-2%] text-on-surface">
+          <h1 className="font-display text-2xl font-black tracking-[-0.02em] text-on-surface">
             Text to Learn
           </h1>
         </div>
