@@ -51,27 +51,33 @@ const createChatCompletion = async (messages, options = {}) => {
  * Generates an outline for a course and returns structured JSON
  * @param {string} topic - The topic of the course
  * @param {string} depth - The depth (e.g., OVERVIEW, BASIC, DETAILED)
- * @returns {Promise<Array<{title: string, order: number, objective: string}>>}
+ * @returns {Promise<{title: string | null, description: string | null, estimatedDuration: number | null, chapters: Array<{title: string, order: number, objective: string}>}>}
  */
 export const generateCourseOutline = async (topic, depth) => {
   const systemPrompt = `You are an expert curriculum designer. 
 You MUST generate a course syllabus for a ${depth} level course on "${topic}".
 You MUST respond with ONLY valid JSON and nothing else. No markdown wrappers, no intro text.
-The desired output format is a JSON array of objects representing chapters:
-[
-  {
-    "title": "Chapter Heading",
-    "order": 1,
-    "objective": "A short 1-sentence description of the chapter."
-  }
-]`;
+The desired output format is a single JSON object with course metadata and a chapters array:
+{
+  "title": "A concise, engaging course title",
+  "description": "A 2-3 sentence description of what the course covers and who it is for.",
+  "estimatedDuration": 4.5,
+  "chapters": [
+    {
+      "title": "Chapter Heading",
+      "order": 1,
+      "objective": "A short 1-sentence description of the chapter."
+    }
+  ]
+}
+estimatedDuration is in hours. Base it on the depth level and number of chapters.`;
 
   try {
     // using chatCompletion for better instruction following
     const response = await createChatCompletion(
       [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Generate the syllabus for ${topic}. Return ONLY the JSON array.` }
+        { role: "user", content: `Generate the syllabus for ${topic}. Return ONLY the JSON object.` }
       ],
       {
         max_tokens: 1500,
@@ -91,8 +97,42 @@ The desired output format is a JSON array of objects representing chapters:
     }
 
     // Try to parse the result. If this fails, it goes to the catch block
-    const outline = JSON.parse(jsonText);
-    return outline;
+    const parsed = JSON.parse(jsonText);
+
+    // Backward compatibility: if the LLM still returns a bare array, wrap it
+    if (Array.isArray(parsed)) {
+      return { title: null, description: null, estimatedDuration: null, chapters: parsed };
+    }
+
+    // Guard against null or non-object responses (e.g. LLM returns "null" or a primitive)
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error('LLM response is not a valid JSON object.');
+    }
+
+    // Validate the expected wrapper object shape
+    if (!parsed.chapters || !Array.isArray(parsed.chapters)) {
+      throw new Error('LLM response missing "chapters" array.');
+    }
+
+    // Parse estimatedDuration safely — LLM may return a string, null, or omit it entirely
+    let duration = null;
+    try {
+      const raw = Number(parsed.estimatedDuration);
+      if (Number.isFinite(raw) && raw > 0) {
+        duration = raw;
+      } else {
+        console.warn(`[LLM] Invalid or missing estimatedDuration:`, parsed.estimatedDuration);
+      }
+    } catch (error) {
+      console.error(`[LLM] Error parsing estimatedDuration:`, error);
+    }
+
+    return {
+      title: parsed.title || null,
+      description: parsed.description || null,
+      estimatedDuration: duration,
+      chapters: parsed.chapters,
+    };
 
   } catch (error) {
     console.error(`Error generating course outline from LLM with ${HF_TEXT_MODELS.join(", ")}:`, error);
