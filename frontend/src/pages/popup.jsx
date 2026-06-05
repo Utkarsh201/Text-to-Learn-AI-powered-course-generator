@@ -30,24 +30,36 @@ export default function CourseSettingsPopup({ isOpen, onClose, onGenerate }) {
       {/* ── Settings Modal Box ── */}
       <div
         className="w-full max-w-lg bg-surface-container-low border border-outline-variant/20 rounded-lg overflow-hidden shadow-[0_8px_64px_-12px_rgba(0,0,0,0.8)]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="course-generation-settings-title"
+        aria-describedby="course-generation-settings-description"
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Header ── */}
         <div className="px-8 pt-8 pb-6 border-b border-outline-variant/10">
           <div className="flex justify-between items-start">
             <div>
-              <h2 className="text-2xl font-bold tracking-tight text-on-surface font-headline">
+              <h2
+                id="course-generation-settings-title"
+                className="text-2xl font-bold tracking-tight text-on-surface font-headline"
+              >
                 Course Generation Settings
               </h2>
-              <p className="text-on-surface-variant text-sm mt-1">
+              <p
+                id="course-generation-settings-description"
+                className="text-on-surface-variant text-sm mt-1"
+              >
                 Configure how the intelligence engine curates your content.
               </p>
             </div>
             <button
+              type="button"
+              aria-label="Close settings"
               className="text-on-surface-variant hover:text-on-surface transition-colors"
               onClick={onClose}
             >
-              <span className="material-symbols-outlined">close</span>
+              <span className="material-symbols-outlined" aria-hidden="true">close</span>
             </button>
           </div>
         </div>
