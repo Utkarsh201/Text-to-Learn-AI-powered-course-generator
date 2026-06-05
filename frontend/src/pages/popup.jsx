@@ -63,7 +63,7 @@ export default function CourseSettingsPopup({ isOpen, onClose, onGenerate }) {
               {depthOptions.map((opt) => (
                 <label key={opt.value} className="cursor-pointer group">
                   <input
-                    className="hidden peer"
+                    className="sr-only peer"
                     type="radio"
                     name="depth"
                     value={opt.value}
