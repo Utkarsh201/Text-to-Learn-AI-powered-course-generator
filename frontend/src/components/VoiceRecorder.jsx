@@ -61,14 +61,17 @@ const VoiceRecorder = ({ onTranscription, onError, getToken }) => {
 
       // When recording stops, assemble the chunks and send to backend
       mediaRecorder.onstop = async () => {
+        // Get the actual MIME type the browser decided to use
+        const actualMimeType = mediaRecorder.mimeType || mimeType || 'audio/webm';
+
         // Combine all chunks into a single Blob
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        const audioBlob = new Blob(audioChunksRef.current, { type: actualMimeType });
 
         // Stop all microphone tracks to release the mic
         stream.getTracks().forEach((track) => track.stop());
 
-        // Determine file extension from MIME type
-        const extension = mimeType.includes('mp4') ? 'mp4' : 'webm';
+        // Determine file extension from the actual MIME type
+        const extension = actualMimeType.includes('mp4') ? 'mp4' : 'webm';
 
         setIsProcessing(true);
         try {
