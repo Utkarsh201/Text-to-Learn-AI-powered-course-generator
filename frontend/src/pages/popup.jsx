@@ -145,6 +145,7 @@ export default function CourseSettingsPopup({ isOpen, onClose, onGenerate }) {
         {/* ── Footer ── */}
         <div className="px-8 pb-8 pt-2">
           <button
+            type="button"
             className="w-full py-4 bg-gradient-to-r from-tertiary-fixed to-tertiary rounded-xl text-background font-black tracking-tight text-lg shadow-[0_20px_50px_rgba(129,140,248,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
             onClick={handleGenerate}
           >

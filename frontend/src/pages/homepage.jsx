@@ -200,7 +200,7 @@ export default function Homepage() {
             ))}
           </div>
           <div className="text-[9px] tracking-widest text-on-surface-variant font-medium uppercase opacity-50">
-            Text to Learn © 2024
+            Text to Learn © 2024–2026
           </div>
         </footer>
       </main>

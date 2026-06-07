@@ -1,6 +1,8 @@
+// Load environment variables FIRST — before any module reads process.env at import time
+import 'dotenv/config';
+
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 
 // Import Routes
 import authRoutes from './routes/auth.js';
@@ -10,8 +12,6 @@ import prisma from './utils/prisma.js';
 
 // Import Error Handler
 import { errorHandler } from './middlewares/errorHandler.js';
-
-dotenv.config();
 
 const app = express();
 
