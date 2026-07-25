@@ -35,16 +35,26 @@ export const useCourseGeneration = (getToken) => {
   const startGeneration = useCallback(
     async ({ topic, settings }) => {
       clearPollTimer();
+      setRunId(null);
+      setCourseId(null);
       setError(null);
       setCourse(null);
       setStatus("QUEUING");
 
-      const token = await getToken();
-      const result = await generateCourse({ token, topic, settings });
+      let result;
+      try {
+        const token = await getToken();
+        result = await generateCourse({ token, topic, settings });
+      } catch (startError) {
+        clearPollTimer();
+        setStatus("FAILED");
+        setError(startError.message || "Could not start course generation.");
+        return null;
+      }
+
       setRunId(result.generationRunId);
       setCourseId(result.courseId);
       setStatus("PENDING");
-
       const pollStatus = async () => {
         try {
           const pollToken = await getToken();
