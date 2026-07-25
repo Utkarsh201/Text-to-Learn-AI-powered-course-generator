@@ -21,16 +21,22 @@ const parseResponse = async (response) => {
   return payload;
 };
 
-export const request = async (endpoint, { method = "GET", token, body, headers = {} } = {}) => {
+export const request = async (
+  endpoint,
+  { method = "GET", token, body, headers = {} } = {}
+) => {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method,
     headers: {
-      "Content-Type": "application/json",
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
+
+  return parseResponse(response);
+};
 
   return parseResponse(response);
 };
