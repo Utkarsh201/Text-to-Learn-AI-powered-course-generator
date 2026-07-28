@@ -1,5 +1,5 @@
 import prisma from '../prisma/client.js';
-import courseQueue from '../services/courseQueue.js';
+import qstashClient from '../services/qstashClient.js';
 
 const VALID_DEPTHS = new Set(['OVERVIEW', 'BASIC', 'DETAILED']);
 const VALID_LANGUAGES = new Set(['ENGLISH', 'HINDI']);
@@ -109,10 +109,12 @@ export const generateCourse = async (req, res) => {
     });
     generationRunId = generationRun.id;
 
-    // Enqueue after DB commit; on enqueue failure, mark run as FAILED for clean recovery.
-    await courseQueue.add(
-      'course-job',
-      {
+    // Publish to QStash — it will POST back to our webhook endpoint
+    const callbackUrl = `${process.env.QSTASH_CALLBACK_URL}/api/webhooks/course`;
+
+    await qstashClient.publishJSON({
+      url: callbackUrl,
+      body: {
         type: 'generateOutline',
         generationRunId: generationRun.id,
         courseId: course.id,
@@ -123,12 +125,8 @@ export const generateCourse = async (req, res) => {
         includeVideoReferences: generationRun.includeVideoReferences,
         includePdfDownload: generationRun.includePdfDownload,
       },
-      {
-        jobId: `outline-${generationRun.id}`,
-        removeOnComplete: true,
-        removeOnFail: false,
-      }
-    );
+      retries: 3,
+    });
 
     res.status(202).json({
       message: 'Course generation successfully queued',

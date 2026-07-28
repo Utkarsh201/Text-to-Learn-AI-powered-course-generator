@@ -8,6 +8,7 @@ import cors from 'cors';
 import authRoutes from './routes/auth.js';
 import searchRoutes from './routes/search.js';
 import courseRoutes from './routes/course.js';
+import webhookRoutes from './routes/webhook.js';
 import prisma from './prisma/client.js';
 
 // Import Error Handler
@@ -37,6 +38,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/courses', courseRoutes);
+app.use('/api/webhooks', webhookRoutes);
 
 // Health check route
 app.get('/api/test', async (req, res) => {
