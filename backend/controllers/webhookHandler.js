@@ -201,7 +201,7 @@ export const handleCourseWebhook = async (req, res) => {
         if (!run.includeQuizzes) {
           await prisma.generationRun.update({
             where: { id: generationRunId },
-            data: { status: "COMPLETED", completedAt: new Date() },
+            data: { status: "COMPLETED", completedAt: new Date(), error: null },
           });
           console.log(
             `[Webhook] Quiz disabled. Run ${generationRunId} marked COMPLETED.`
