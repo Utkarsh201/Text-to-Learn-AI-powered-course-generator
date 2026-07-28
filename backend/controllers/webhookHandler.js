@@ -46,7 +46,7 @@ export const handleCourseWebhook = async (req, res) => {
 
     const isValid = await receiver.verify({
       signature,
-      body: JSON.stringify(req.body),
+      body: req.rawBody ?? JSON.stringify(req.body),
     });
 
     if (!isValid) {
