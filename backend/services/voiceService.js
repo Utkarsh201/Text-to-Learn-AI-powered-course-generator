@@ -1,70 +1,59 @@
-import { InferenceClient } from '@huggingface/inference';
+import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-
 // in this file following things are done 
-// 1. hugging face model is initialized
-// 2. transcribeAudio, takes the raw audio from the audio sitting inside the RAM that was prepared by the multer. 
-// 3. it sends the raw audio to the hugging face model for transcription
+// 1. Gemini model is initialized
+// 2. transcribeAudio, takes the raw audio from the audio sitting inside the RAM that was prepared by multer. 
+// 3. it sends the raw audio to the Gemini model for transcription
 // 4. error handling
 
-
-const hfToken = process.env.HF_ACCESS_TOKEN;
-const hf = hfToken ? new InferenceClient(hfToken) : null;
-// inference client is used to interact with the hugging face model
-
-// Model used for speech-to-text transcription.
-const ASR_MODEL = 'openai/whisper-large-v3';
+const apiKey = process.env.GEMINI_API_KEY;
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+// inference client is used to interact with the Gemini model
 
 /**
- * Transcribe an audio buffer using Hugging Face automatic speech recognition.
+ * Transcribe an audio buffer using Gemini 2.5 Flash model.
  *
  * @param {Buffer} audioBuffer Raw audio data (webm, wav, flac, mp3, ogg, mp4)
+ * @param {string} mimeType The MIME type of the audio file (e.g. audio/webm)
  * @returns {Promise<{ text: string }>} Transcribed text
  */
-  // it is a standard way of documenting what a js function does 
-  // argument is audiobuffer and the data type is Buffer
-  // return type is a promise that resolves to an object with a text property
-
-  // buffer is the special type of data that is used to handle raw, binary data
-
-export const transcribeAudio = async (audioBuffer) => {
-  if (!hf) {
-    throw new Error('HF_ACCESS_TOKEN is missing. Add it to backend/.env before using voice transcription.');
+export const transcribeAudio = async (audioBuffer, mimeType = 'audio/webm') => {
+  if (!ai) {
+    throw new Error('GEMINI_API_KEY is missing. Add it to backend/.env before using voice transcription.');
   }
 
   try {
-    const result = await hf.automaticSpeechRecognition({
-      model: ASR_MODEL,
-      data: audioBuffer,
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        {
+          inlineData: {
+            data: audioBuffer.toString("base64"),
+            mimeType: mimeType,
+          }
+        },
+        "Please transcribe this audio accurately. Output only the exact text transcription and nothing else. Do not add conversational fillers, markdown formatting, or introductory text."
+      ],
+      config: {
+        temperature: 0.1,
+      }
     });
 
-    const text = typeof result?.text === 'string' ? result.text : '';
-    if (!text.trim()) {
+    const text = typeof response?.text === 'string' ? response.text.trim() : '';
+    if (!text) {
       throw new Error('Transcription completed but no text was returned.');
     }
 
     if (process.env.NODE_ENV !== 'production' && process.env.DEBUG_VOICE_TRANSCRIPTION === 'true') {
       console.log(`Transcription successful. Transcript length: ${text.length} characters.`);
     }
+    
     return { text };
   } catch (error) {
-    console.error('Hugging Face transcription error:', error.message);
-
-    if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
-      throw new Error('Invalid Hugging Face API token. Check HF_ACCESS_TOKEN in backend/.env.');
-    }
-
-    if (error.message?.includes('503') || error.message?.toLowerCase().includes('loading')) {
-      throw new Error('The Whisper model is loading on Hugging Face. Please retry in about 20 seconds.');
-    }
-
-    if (error.message?.includes('429') || error.message?.toLowerCase().includes('rate limit')) {
-      throw new Error('Hugging Face rate limit reached. Please wait and retry.');
-    }
-
-    throw error;
+    console.error('Gemini transcription error:', error.message);
+    throw new Error('Failed to transcribe audio using Gemini. Please try again.');
   }
 };

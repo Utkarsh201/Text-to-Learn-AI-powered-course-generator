@@ -22,8 +22,8 @@ export const handleVoiceSearch = async (req, res) => {
 
         console.log(`Received audio file: ${req.file.originalname}, size: ${req.file.size} bytes, type: ${req.file.mimetype}`);
 
-        // Send the audio buffer to Hugging Face Whisper for transcription
-        const result = await transcribeAudio(req.file.buffer);
+        // Send the audio buffer to Gemini for transcription
+        const result = await transcribeAudio(req.file.buffer, req.file.mimetype);
 
         // Guard: don't send a response if the client already disconnected
         if (abortController.signal.aborted) return;
