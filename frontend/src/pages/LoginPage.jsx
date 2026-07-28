@@ -1,10 +1,10 @@
-export default function LoginPage({ onLogin }) {
+export default function LoginPage({ authError, onLogin, onSwitchToSignup }) {
   const handleGoogleLogin = () => {
-    onLogin?.("google");
+    onLogin?.();
   };
 
   const handleGitHubLogin = () => {
-    onLogin?.("github");
+    onLogin?.();
   };
 
   return (
@@ -115,16 +115,23 @@ export default function LoginPage({ onLogin }) {
               for secure authentication. No passwords are stored on our servers.
             </p>
 
+            {authError && (
+              <p className="mt-5 rounded-lg border border-error/30 bg-error-container/30 px-4 py-3 text-center text-xs text-on-error-container">
+                {authError}
+              </p>
+            )}
+
             {/* Sign Up Link */}
             <div className="mt-10 border-t border-outline-variant/20 pt-8 text-center sm:mt-12">
               <p className="text-sm text-on-surface-variant">
                 Don't have an account?
-                <a
+                <button
                   className="ml-1 font-bold text-on-surface transition-colors hover:text-tertiary-fixed"
-                  href="#signup"
+                  onClick={onSwitchToSignup}
+                  type="button"
                 >
                   Sign Up
-                </a>
+                </button>
               </p>
             </div>
           </div>

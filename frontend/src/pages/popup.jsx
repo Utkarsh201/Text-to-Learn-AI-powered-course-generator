@@ -9,7 +9,7 @@ const depthOptions = [
 export default function CourseSettingsPopup({ isOpen, onClose, onGenerate }) {
   const [depth, setDepth] = useState("basic");
   const [quizzes, setQuizzes] = useState("yes");
-  const [videoRef, setVideoRef] = useState("no");
+  const [videoRef] = useState("no");
 
   if (!isOpen) return null;
 
@@ -17,7 +17,8 @@ export default function CourseSettingsPopup({ isOpen, onClose, onGenerate }) {
     onGenerate?.({
       depth,
       includeQuizzes: quizzes === "yes",
-      includeVideoReferences: videoRef === "yes",
+      includeVideoReferences: false,
+      includePdfDownload: false,
     });
   };
 
@@ -119,7 +120,7 @@ export default function CourseSettingsPopup({ isOpen, onClose, onGenerate }) {
             {/* Include Video Reference */}
             <section className="space-y-4">
               <span className="text-[11px] font-bold uppercase tracking-widest text-tertiary-fixed">
-                Include Video Reference
+                Video Reference
               </span>
               <div className="flex gap-2 p-1 bg-surface-container rounded-lg border border-outline-variant/10">
                 {["yes", "no"].map((val) => (
@@ -130,14 +131,18 @@ export default function CourseSettingsPopup({ isOpen, onClose, onGenerate }) {
                       name="video"
                       value={val}
                       checked={videoRef === val}
-                      onChange={() => setVideoRef(val)}
+                      disabled
+                      readOnly
                     />
-                    <div className="py-2 text-center text-xs font-semibold rounded-md peer-checked:bg-surface-bright peer-checked:text-on-surface text-on-surface-variant transition-all">
+                    <div className="py-2 text-center text-xs font-semibold rounded-md peer-checked:bg-surface-bright peer-checked:text-on-surface text-on-surface-variant transition-all opacity-60">
                       {val.charAt(0).toUpperCase() + val.slice(1)}
                     </div>
                   </label>
                 ))}
               </div>
+              <p className="text-[10px] leading-4 text-on-surface-variant">
+                Placeholder only. Backend generation for videos is not enabled yet.
+              </p>
             </section>
           </div>
         </div>

@@ -1,250 +1,365 @@
-export default function MainContent() {
+import { useMemo, useState } from "react";
+
+const dummyCourse = {
+  id: "preview-course",
+  title: "Quantum Mechanics: A Modern Introduction",
+  topic: "Quantum Mechanics",
+  description: "Preview content shown until a generated course is opened.",
+  estimatedDuration: 4.5,
+  generationRun: { status: "COMPLETED" },
+  chapters: [
+    {
+      id: "preview-chapter",
+      title: "Quantum States and Observables",
+      objective: "Understand how quantum states differ from classical states.",
+      order: 1,
+      lessons: [
+        {
+          id: "preview-lesson",
+          title: "Quantum States",
+          content:
+            "The fundamental concept that distinguishes quantum mechanics from classical physics is the nature of the state of a system.\n\n## Superposition\n\nIf a quantum system can exist in state A and state B, it can also exist in a linear combination of both states.",
+          keyTakeaways: [
+            "Quantum systems are described by state vectors.",
+            "Superposition allows combinations of possible states.",
+            "Measurement changes the state into a definite outcome.",
+          ],
+          videoReferences: [],
+          quiz: null,
+        },
+      ],
+    },
+  ],
+};
+
+const formatDuration = (hours) => {
+  if (!hours) return "Estimated reading time";
+  if (hours < 1) return `${Math.round(hours * 60)} min course`;
+  return `${hours} hour course`;
+};
+
+function MarkdownLite({ content }) {
+  const blocks = String(content || "")
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
   return (
-    <div className="bg-background text-on-surface antialiased min-h-screen flex selection:bg-tertiary-fixed selection:text-on-tertiary-fixed">
-      {/* Course TOC Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-surface-container-low flex flex-col py-8 z-30 shadow-[40px_0_40px_-15px_rgba(0,0,0,0.5)]">
-        {/* Logo Header */}
-        <div className="px-6 mb-12">
-          <h1 className="font-display text-2xl font-black tracking-[-0.02em] text-on-surface">
+    <>
+      {blocks.map((block, index) => {
+        if (block.startsWith("### ")) {
+          return (
+            <h4 className="font-display mt-10 text-2xl font-bold text-on-surface" key={`${block}-${index}`}>
+              {block.replace(/^###\s+/, "")}
+            </h4>
+          );
+        }
+
+        if (block.startsWith("## ")) {
+          return (
+            <h3 className="font-display mt-14 text-3xl font-bold tracking-tight text-on-surface" key={`${block}-${index}`}>
+              {block.replace(/^##\s+/, "")}
+            </h3>
+          );
+        }
+
+        if (block.startsWith("- ")) {
+          return (
+            <ul className="list-disc space-y-2 pl-6 text-base leading-7" key={`${block}-${index}`}>
+              {block.split("\n").map((item) => (
+                <li key={item}>{item.replace(/^-\s+/, "")}</li>
+              ))}
+            </ul>
+          );
+        }
+
+        if (block.startsWith("```")) {
+          return (
+            <pre className="overflow-auto rounded-lg bg-surface-container-high p-5 text-sm text-on-surface" key={`${block}-${index}`}>
+              <code>{block.replace(/^```[a-z]*\n?/i, "").replace(/```$/, "")}</code>
+            </pre>
+          );
+        }
+
+        return (
+          <p className="text-lg leading-[1.8] text-on-surface-variant" key={`${block}-${index}`}>
+            {block}
+          </p>
+        );
+      })}
+    </>
+  );
+}
+
+function QuizPanel({ courseId, lesson, onRevealQuiz }) {
+  const quiz = lesson?.quiz;
+  const [isRevealing, setIsRevealing] = useState(false);
+  const [revealedQuiz, setRevealedQuiz] = useState(null);
+  const [error, setError] = useState(null);
+
+  if (!quiz?.questions?.length) {
+    return null;
+  }
+
+  const revealAnswers = async () => {
+    setIsRevealing(true);
+    setError(null);
+
+    try {
+      const result = await onRevealQuiz({ courseId, quizId: quiz.id });
+      setRevealedQuiz(result);
+    } catch (revealError) {
+      setError(revealError.message || "Could not reveal answers.");
+    } finally {
+      setIsRevealing(false);
+    }
+  };
+
+  const answerByQuestionId = new Map(
+    (revealedQuiz?.questions || []).map((question) => [question.id, question])
+  );
+
+  return (
+    <section className="mt-14 rounded-lg border border-outline-variant/20 bg-surface-container-low p-6">
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <div>
+          <h3 className="font-display text-2xl font-bold text-on-surface">Quiz</h3>
+          <p className="mt-1 text-sm text-on-surface-variant">
+            Answers stay hidden until you reveal them.
+          </p>
+        </div>
+        <button
+          className="rounded-lg bg-tertiary-fixed px-4 py-2 text-sm font-bold text-on-tertiary-fixed disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={isRevealing || Boolean(revealedQuiz)}
+          onClick={revealAnswers}
+          type="button"
+        >
+          {revealedQuiz ? "Answers Revealed" : isRevealing ? "Revealing" : "Reveal Answers"}
+        </button>
+      </div>
+
+      <div className="space-y-5">
+        {quiz.questions.map((question, index) => {
+          const revealed = answerByQuestionId.get(question.id);
+          return (
+            <div className="rounded-lg bg-surface-container p-5" key={question.id}>
+              <p className="font-semibold text-on-surface">
+                {index + 1}. {question.question}
+              </p>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {(question.options || []).map((option) => (
+                  <div className="rounded-md border border-outline-variant/20 px-3 py-2 text-sm text-on-surface-variant" key={option}>
+                    {option}
+                  </div>
+                ))}
+              </div>
+              {revealed && (
+                <div className="mt-4 rounded-md border border-tertiary-fixed/30 bg-tertiary-fixed/10 px-4 py-3 text-sm">
+                  <p className="font-bold text-on-surface">Answer: {revealed.answer}</p>
+                  {revealed.explanation && (
+                    <p className="mt-2 text-on-surface-variant">{revealed.explanation}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {error && (
+        <p className="mt-5 rounded-md border border-error/30 bg-error-container/20 px-4 py-3 text-sm text-on-error-container">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+export default function MainContent({ course = dummyCourse, onBack, onRevealQuiz }) {
+  const chapters = course?.chapters?.length ? course.chapters : dummyCourse.chapters;
+  const [activeChapterId, setActiveChapterId] = useState(chapters[0]?.id);
+
+  const activeChapter = useMemo(() => {
+    return chapters.find((chapter) => chapter.id === activeChapterId) || chapters[0];
+  }, [activeChapterId, chapters]);
+
+  const activeChapterIndex = chapters.findIndex((chapter) => chapter.id === activeChapter?.id);
+  const activeLesson = activeChapter?.lessons?.[0];
+  const nextChapter = chapters[activeChapterIndex + 1];
+
+  return (
+    <div className="bg-background text-on-surface antialiased min-h-screen selection:bg-tertiary-fixed selection:text-on-tertiary-fixed lg:flex">
+      <aside className="fixed left-0 top-0 z-30 hidden h-full w-64 flex-col bg-surface-container-low py-8 shadow-[40px_0_40px_-15px_rgba(0,0,0,0.5)] lg:flex">
+        <div className="mb-12 px-6">
+          <h1 className="font-display text-2xl font-black tracking-tight text-on-surface">
             Text to Learn
           </h1>
         </div>
 
-        {/* Back Action */}
-        <div className="px-4 mb-6">
-          <button className="flex items-center gap-3 px-4 py-3 w-full rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors duration-200 text-left group">
-            <span className="material-symbols-outlined text-[20px] group-hover:text-tertiary-fixed transition-colors duration-200">
+        <div className="mb-6 px-4">
+          <button
+            className="group flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-on-surface-variant transition-colors duration-200 hover:bg-surface-container hover:text-on-surface"
+            onClick={onBack}
+            type="button"
+          >
+            <span className="material-symbols-outlined text-[20px] transition-colors duration-200 group-hover:text-tertiary-fixed">
               arrow_back
             </span>
             <span className="font-body text-sm font-medium">Go Back</span>
           </button>
         </div>
 
-        {/* Course Chapters List */}
-        <nav className="flex-grow overflow-y-auto px-4 flex flex-col gap-1">
-          <div className="px-2 mb-4 mt-2">
-            <span className="font-label text-xs tracking-[0.1em] text-on-surface-variant uppercase">
+        <nav className="flex flex-grow flex-col gap-1 overflow-y-auto px-4">
+          <div className="mb-4 mt-2 px-2">
+            <span className="font-label text-xs uppercase tracking-[0.1em] text-on-surface-variant">
               Course Structure
             </span>
           </div>
 
-          <a
-            className="group flex items-start gap-3 px-3 py-3 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all duration-300"
-            href="#"
-          >
-            <span className="font-display font-bold text-sm mt-0.5 opacity-60">
-              01
-            </span>
-            <span className="font-body text-sm font-medium leading-tight">
-              Introduction to Quantum Mechanics
-            </span>
-          </a>
-
-          {/* Active Chapter */}
-          <a
-            className="group flex items-start gap-3 px-3 py-3 rounded-lg bg-surface-container text-on-surface border-l-2 border-tertiary-fixed relative before:absolute before:inset-0 before:bg-surface-bright/5 before:rounded-lg pointer-events-none"
-            href="#"
-          >
-            <span className="font-display font-bold text-sm mt-0.5 text-tertiary-fixed">
-              02
-            </span>
-            <span className="font-body text-sm font-semibold leading-tight">
-              Quantum States and Observables
-            </span>
-          </a>
-
-          <a
-            className="group flex items-start gap-3 px-3 py-3 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all duration-300"
-            href="#"
-          >
-            <span className="font-display font-bold text-sm mt-0.5 opacity-60">
-              03
-            </span>
-            <span className="font-body text-sm font-medium leading-tight">
-              Wave Functions
-            </span>
-          </a>
-
-          <a
-            className="group flex items-start gap-3 px-3 py-3 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all duration-300"
-            href="#"
-          >
-            <span className="font-display font-bold text-sm mt-0.5 opacity-60">
-              04
-            </span>
-            <span className="font-body text-sm font-medium leading-tight">
-              The Schrödinger Equation
-            </span>
-          </a>
-
-          <a
-            className="group flex items-start gap-3 px-3 py-3 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all duration-300"
-            href="#"
-          >
-            <span className="font-display font-bold text-sm mt-0.5 opacity-60">
-              05
-            </span>
-            <span className="font-body text-sm font-medium leading-tight">
-              Quantum Entanglement
-            </span>
-          </a>
+          {chapters.map((chapter, index) => {
+            const isActive = chapter.id === activeChapter?.id;
+            return (
+              <button
+                className={`group flex items-start gap-3 rounded-lg px-3 py-3 text-left transition-all duration-300 ${
+                  isActive
+                    ? "border-l-2 border-tertiary-fixed bg-surface-container text-on-surface"
+                    : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
+                }`}
+                key={chapter.id}
+                onClick={() => setActiveChapterId(chapter.id)}
+                type="button"
+              >
+                <span className={`font-display mt-0.5 text-sm font-bold ${isActive ? "text-tertiary-fixed" : "opacity-60"}`}>
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span className="font-body text-sm font-medium leading-tight">{chapter.title}</span>
+              </button>
+            );
+          })}
         </nav>
 
-        {/* Footer Actions */}
-        <div className="mt-auto px-4 pt-6 flex flex-col gap-1">
-          <button className="flex items-center gap-3 px-4 py-3 w-full rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors duration-200 text-left">
-            <span className="material-symbols-outlined text-[20px]">
-              settings
-            </span>
+        <div className="mt-auto flex flex-col gap-1 px-4 pt-6">
+          <button className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-on-surface-variant opacity-50" type="button">
+            <span className="material-symbols-outlined text-[20px]">settings</span>
             <span className="font-body text-sm font-medium">Settings</span>
           </button>
-          <button className="flex items-center gap-3 px-4 py-3 w-full rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors duration-200 text-left">
-            <span className="material-symbols-outlined text-[20px]">help</span>
-            <span className="font-body text-sm font-medium">Help</span>
+          <button className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-on-surface-variant opacity-50" type="button">
+            <span className="material-symbols-outlined text-[20px]">download</span>
+            <span className="font-body text-sm font-medium">PDF Coming Later</span>
           </button>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="ml-64 flex-grow relative w-full pb-32">
-        {/* Header Section */}
-        <header className="w-full max-w-4xl mx-auto px-12 pt-24 pb-16">
-          <h1 className="font-display text-5xl md:text-6xl font-extrabold tracking-tight text-on-surface leading-[1.1]">
-            Quantum Mechanics: <br />
-            <span className="text-on-surface-variant">
-              A Modern Introduction
-            </span>
+      <main className="relative w-full flex-grow pb-32 lg:ml-64">
+        <header className="mx-auto w-full max-w-4xl px-6 pb-12 pt-10 sm:px-12 sm:pt-24">
+          <button
+            className="mb-8 flex items-center gap-2 rounded-lg bg-surface-container px-4 py-2 text-sm text-on-surface-variant transition-colors hover:text-on-surface lg:hidden"
+            onClick={onBack}
+            type="button"
+          >
+            <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+            Back
+          </button>
+          <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-tertiary-fixed">
+            {course?.generationRun?.status || "Course"}
+          </p>
+          <h1 className="font-display text-4xl font-extrabold leading-[1.1] tracking-tight text-on-surface md:text-6xl">
+            {course?.title || course?.topic || dummyCourse.title}
           </h1>
+          {course?.description && (
+            <p className="mt-5 max-w-2xl text-base leading-7 text-on-surface-variant">
+              {course.description}
+            </p>
+          )}
         </header>
 
-        {/* Chapter Content Canvas */}
-        <article className="w-full max-w-3xl mx-auto px-12">
-          {/* Chapter Metadata */}
-          <div className="flex items-center gap-4 mb-12 pb-8 border-b border-surface-container-high/50">
-            <div className="h-10 w-10 rounded-full bg-surface-container-high flex items-center justify-center">
+        <article className="mx-auto w-full max-w-3xl px-6 sm:px-12">
+          <div className="mb-12 flex items-center gap-4 border-b border-surface-container-high/50 pb-8">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-container-high">
               <span className="font-display font-bold text-tertiary-fixed">
-                02
+                {String(activeChapterIndex + 1).padStart(2, "0")}
               </span>
             </div>
             <div>
               <h2 className="font-display text-2xl font-bold text-on-surface">
-                Quantum States
+                {activeChapter?.title}
               </h2>
-              <p className="font-body text-sm text-on-surface-variant mt-1 flex items-center gap-2">
-                <span className="material-symbols-outlined text-[16px]">
-                  schedule
-                </span>
-                45 min read
+              <p className="mt-1 flex items-center gap-2 font-body text-sm text-on-surface-variant">
+                <span className="material-symbols-outlined text-[16px]">schedule</span>
+                {formatDuration(course?.estimatedDuration)}
               </p>
             </div>
           </div>
 
-          {/* Editorial Text Body */}
-          <div className="editorial-content font-body text-lg leading-[1.8] text-on-surface-variant space-y-8">
-            <p>
-              The fundamental concept that distinguishes quantum mechanics from
-              classical physics is the nature of the state of a system. In
-              classical mechanics, the state of a particle is completely
-              specified by its position and momentum at a given time. If we know
-              these values, we can predict its future behavior using Newton's
-              laws.
-            </p>
-
-            <p>
-              However, in the quantum realm, this deterministic view breaks
-              down. We introduce a mathematical entity called the{" "}
-              <strong className="text-on-surface font-semibold">
-                state vector
-              </strong>{" "}
-              or{" "}
-              <strong className="text-on-surface font-semibold">
-                wave function
-              </strong>
-              , usually denoted by the Greek letter psi (Ψ). This object
-              contains all the information that can possibly be known about the
-              system, but it does not specify exact values for position and
-              momentum simultaneously.
-            </p>
-
-            {/* High-End Blockquote Pattern */}
-            <blockquote className="relative my-12 py-8 pl-10 pr-6 bg-surface-container-high rounded-xl overflow-hidden group">
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-tertiary-fixed"></div>
-              <span className="material-symbols-outlined absolute right-6 bottom-6 text-6xl text-surface-bright/30 pointer-events-none -rotate-12 group-hover:scale-110 transition-transform duration-500">
-                format_quote
-              </span>
-              <p className="relative z-10 font-display text-xl font-medium text-on-surface leading-relaxed mb-4">
-                &ldquo;I think I can safely say that nobody understands quantum
-                mechanics.&rdquo;
+          {activeChapter?.objective && (
+            <blockquote className="relative my-10 overflow-hidden rounded-lg bg-surface-container-high py-6 pl-8 pr-6">
+              <div className="absolute bottom-0 left-0 top-0 w-1 bg-tertiary-fixed" />
+              <p className="font-display text-xl font-medium leading-relaxed text-on-surface">
+                {activeChapter.objective}
               </p>
-              <footer className="relative z-10 font-body text-sm text-on-surface-variant tracking-wide uppercase">
-                — Richard Feynman,{" "}
-                <cite className="normal-case opacity-75">
-                  The Character of Physical Law
-                </cite>
-              </footer>
             </blockquote>
+          )}
 
-            <h3 className="font-display text-3xl font-bold text-on-surface mt-16 mb-6 tracking-tight">
-              Superposition and the Hilbert Space
-            </h3>
-
-            <p>
-              A profound consequence of the state vector formulation is the
-              principle of superposition. If a quantum system can exist in state
-              A and state B, it can also exist in a state that is a linear
-              combination of both. This is not merely a statistical mixture, but
-              a fundamentally new state where the system is, in a sense, in both
-              configurations simultaneously until measured.
-            </p>
-
-            {/* Asymmetric Concept Card */}
-            <div className="my-14 p-[1px] rounded-2xl bg-gradient-to-br from-surface-variant to-background overflow-hidden shadow-[0_40px_40px_-15px_rgba(0,0,0,0.6)]">
-              <div className="bg-surface-container-low rounded-2xl p-8 sm:p-10 flex flex-col sm:flex-row gap-8 items-start relative overflow-hidden">
-                {/* Decorative glow */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-tertiary-fixed/5 rounded-full blur-[60px] translate-x-1/3 -translate-y-1/3 pointer-events-none"></div>
-                <div className="shrink-0 h-16 w-16 rounded-xl bg-surface-container flex items-center justify-center border border-outline-variant/30">
-                  <span className="material-symbols-outlined text-3xl text-tertiary-fixed">
-                    functions
-                  </span>
-                </div>
-                <div className="relative z-10">
-                  <h4 className="font-display text-xl font-bold text-on-surface mb-3">
-                    Mathematical Formalism
-                  </h4>
-                  <p className="font-body text-base text-on-surface-variant leading-relaxed">
-                    Mathematically, these states are represented as vectors in a
-                    complex vector space known as a{" "}
-                    <strong>Hilbert space</strong>. The inner product of these
-                    vectors allows us to calculate the probability amplitudes for
-                    various measurement outcomes, linking the abstract
-                    mathematics to physical reality.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <p>
-              When we perform a measurement on a quantum system, the system is
-              forced into one of the definite states associated with the
-              measuring device. This abrupt change is often referred to as the
-              &ldquo;collapse of the wave function.&rdquo; The deterministic
-              evolution described by the Schrödinger equation is briefly
-              suspended, replaced by a probabilistic jump.
-            </p>
+          <div className="editorial-content font-body space-y-8">
+            <MarkdownLite content={activeLesson?.content} />
           </div>
+
+          {activeLesson?.keyTakeaways?.length > 0 && (
+            <section className="mt-14 rounded-lg border border-outline-variant/20 bg-surface-container-low p-6">
+              <h3 className="font-display text-2xl font-bold text-on-surface">Key Takeaways</h3>
+              <ul className="mt-5 space-y-3">
+                {activeLesson.keyTakeaways.map((takeaway) => (
+                  <li className="flex gap-3 text-sm leading-6 text-on-surface-variant" key={takeaway}>
+                    <span className="material-symbols-outlined text-[18px] text-tertiary-fixed">check_circle</span>
+                    <span>{takeaway}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <section className="mt-14 rounded-lg border border-outline-variant/20 bg-surface-container-low p-6">
+            <h3 className="font-display text-2xl font-bold text-on-surface">Video References</h3>
+            {activeLesson?.videoReferences?.length ? (
+              <div className="mt-5 space-y-3">
+                {activeLesson.videoReferences.map((video) => (
+                  <a
+                    className="block rounded-lg bg-surface-container p-4 text-sm text-on-surface-variant hover:text-on-surface"
+                    href={video.url}
+                    key={video.id}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {video.title}
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-on-surface-variant">
+                Video references are placeholder-only for now. The backend model exists, but generation is not wired yet.
+              </p>
+            )}
+          </section>
+
+          <QuizPanel courseId={course.id} lesson={activeLesson} onRevealQuiz={onRevealQuiz} />
         </article>
 
-        {/* Floating Glass Action Button */}
-        <div className="fixed bottom-8 right-12 z-40">
-          <button className="glass-panel group flex items-center gap-3 px-6 py-4 rounded-full border border-outline-variant/20 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.5)] hover:bg-surface-container/80 hover:border-outline-variant/40 transition-all duration-300">
-            <span className="font-body text-sm font-semibold text-on-surface tracking-wide">
-              Continue to Wave Functions
-            </span>
-            <span className="material-symbols-outlined text-tertiary-fixed group-hover:translate-x-1 transition-transform duration-300">
-              arrow_forward
-            </span>
-          </button>
-        </div>
+        {nextChapter && (
+          <div className="fixed bottom-8 right-6 z-40 sm:right-12">
+            <button
+              className="glass-panel group flex items-center gap-3 rounded-full border border-outline-variant/20 px-6 py-4 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.5)] transition-all duration-300 hover:border-outline-variant/40 hover:bg-surface-container/80"
+              onClick={() => setActiveChapterId(nextChapter.id)}
+              type="button"
+            >
+              <span className="font-body text-sm font-semibold tracking-wide text-on-surface">
+                Continue to {nextChapter.title}
+              </span>
+              <span className="material-symbols-outlined text-tertiary-fixed transition-transform duration-300 group-hover:translate-x-1">
+                arrow_forward
+              </span>
+            </button>
+          </div>
+        )}
       </main>
     </div>
   );

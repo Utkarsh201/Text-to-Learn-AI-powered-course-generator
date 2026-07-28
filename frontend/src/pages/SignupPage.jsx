@@ -1,10 +1,10 @@
-export default function SignupPage({ onSignup }) {
+export default function SignupPage({ authError, onSignup, onSwitchToLogin }) {
   const handleGoogleSignup = () => {
-    onSignup?.("google");
+    onSignup?.();
   };
 
   const handleGitHubSignup = () => {
-    onSignup?.("github");
+    onSignup?.();
   };
 
   return (
@@ -167,16 +167,29 @@ export default function SignupPage({ onSignup }) {
               </div>
             </div>
 
+            {/* Security Note */}
+            <p className="mt-8 text-center text-xs leading-5 text-on-surface-variant">
+              Powered by{" "}
+              <span className="font-semibold text-tertiary-fixed">Auth0</span>.
+              Your data is encrypted and secure — no passwords stored.
+            </p>
+
+            {authError && (
+              <p className="mt-5 rounded-lg border border-error/30 bg-error-container/30 px-4 py-3 text-center text-xs text-on-error-container">
+                {authError}
+              </p>
+            )}
             {/* Sign In Link */}
             <div className="mt-10 border-t border-outline-variant/20 pt-8 text-center sm:mt-12">
               <p className="text-sm text-on-surface-variant">
                 Already have an account?
-                <a
+                <button
                   className="ml-1 font-bold text-on-surface transition-colors hover:text-tertiary-fixed"
-                  href="#login"
+                  onClick={onSwitchToLogin}
+                  type="button"
                 >
                   Sign In
-                </a>
+                </button>
               </p>
             </div>
           </div>
