@@ -1,6 +1,6 @@
 import { Worker } from 'bullmq';
 import courseQueue, { connection } from './courseQueue.js';
-import prisma from '../utils/prisma.js';
+import prisma from '../prisma/client.js';
 import { generateCourseOutline, generateLessonContent, generateQuiz } from './llmService.js';
 
 const DEFAULT_JOB_OPTIONS = {

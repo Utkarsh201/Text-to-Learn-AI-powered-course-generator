@@ -8,7 +8,7 @@ import cors from 'cors';
 import authRoutes from './routes/auth.js';
 import searchRoutes from './routes/search.js';
 import courseRoutes from './routes/course.js';
-import prisma from './utils/prisma.js';
+import prisma from './prisma/client.js';
 
 // Import Error Handler
 import { errorHandler } from './middlewares/errorHandler.js';

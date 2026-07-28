@@ -1,4 +1,4 @@
-import prisma from '../utils/prisma.js';
+import prisma from '../prisma/client.js';
 import { sendWelcomeEmail } from '../services/emailService.js';
 
 const getBearerToken = (req) => {

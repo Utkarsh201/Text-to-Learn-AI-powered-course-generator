@@ -1,4 +1,4 @@
-import prisma from '../utils/prisma.js';
+import prisma from '../prisma/client.js';
 import courseQueue from '../services/courseQueue.js';
 
 const VALID_DEPTHS = new Set(['OVERVIEW', 'BASIC', 'DETAILED']);

@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import app from './app.js';
-import prisma from './utils/prisma.js';
+import prisma from './prisma/client.js';
 import courseQueue from './services/courseQueue.js';
 import courseWorker from './services/courseWorker.js';
 

@@ -62,10 +62,10 @@ estimatedDuration should be in hours. Base it on the depth level and number of c
     const parsed = JSON.parse(response.text);
 
     return {
-      title: parsed.title || null,
-      description: parsed.description || null,
-      estimatedDuration: parsed.estimatedDuration || null,
-      chapters: parsed.chapters || [],
+      title: typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title.trim() : null,
+      description: typeof parsed.description === 'string' && parsed.description.trim() ? parsed.description.trim() : null,
+      estimatedDuration: typeof parsed.estimatedDuration === 'number' && parsed.estimatedDuration >= 0 ? parsed.estimatedDuration : null,
+      chapters: Array.isArray(parsed.chapters) ? parsed.chapters : [],
     };
   } catch (error) {
     console.error(`Error generating course outline from LLM with Gemini:`, error);
