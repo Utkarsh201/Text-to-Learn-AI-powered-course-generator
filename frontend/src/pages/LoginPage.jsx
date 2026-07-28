@@ -157,7 +157,7 @@ export default function LoginPage({ authError, onLogin, onSwitchToSignup }) {
           </a>
         ))}
         <span className="font-body text-[10px] font-bold uppercase tracking-[0.2em] text-outline">
-          Text to Learn © 2024
+          Text to Learn © 2024–2026
         </span>
       </footer>
     </div>

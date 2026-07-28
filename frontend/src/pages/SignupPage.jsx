@@ -179,7 +179,6 @@ export default function SignupPage({ authError, onSignup, onSwitchToLogin }) {
                 {authError}
               </p>
             )}
-
             {/* Sign In Link */}
             <div className="mt-10 border-t border-outline-variant/20 pt-8 text-center sm:mt-12">
               <p className="text-sm text-on-surface-variant">
@@ -193,13 +192,6 @@ export default function SignupPage({ authError, onSignup, onSwitchToLogin }) {
                 </button>
               </p>
             </div>
-          </div>
-
-          {/* Bottom Tag */}
-          <div className="mt-8 flex justify-center gap-6 text-[10px] font-bold uppercase tracking-[0.2em] text-outline">
-            <span>Edition 2.0</span>
-            <span aria-hidden="true">|</span>
-            <span>Zero Passwords</span>
           </div>
         </section>
       </main>
@@ -216,7 +208,7 @@ export default function SignupPage({ authError, onSignup, onSwitchToLogin }) {
           </a>
         ))}
         <span className="font-body text-[10px] font-bold uppercase tracking-[0.2em] text-outline">
-          Text to Learn © 2024
+          Text to Learn © 2024–2026
         </span>
       </footer>
     </div>
