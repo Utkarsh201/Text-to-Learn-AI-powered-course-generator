@@ -167,13 +167,6 @@ export default function SignupPage({ onSignup }) {
               </div>
             </div>
 
-            {/* Security Note */}
-            <p className="mt-8 text-center text-xs leading-5 text-on-surface-variant">
-              Powered by{" "}
-              <span className="font-semibold text-tertiary-fixed">Auth0</span>.
-              Your data is encrypted and secure — no passwords stored.
-            </p>
-
             {/* Sign In Link */}
             <div className="mt-10 border-t border-outline-variant/20 pt-8 text-center sm:mt-12">
               <p className="text-sm text-on-surface-variant">
@@ -186,13 +179,6 @@ export default function SignupPage({ onSignup }) {
                 </a>
               </p>
             </div>
-          </div>
-
-          {/* Bottom Tag */}
-          <div className="mt-8 flex justify-center gap-6 text-[10px] font-bold uppercase tracking-[0.2em] text-outline">
-            <span>Edition 2.0</span>
-            <span aria-hidden="true">|</span>
-            <span>Zero Passwords</span>
           </div>
         </section>
       </main>

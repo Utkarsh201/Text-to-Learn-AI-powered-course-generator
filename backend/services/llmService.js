@@ -1,50 +1,15 @@
-import { InferenceClient } from "@huggingface/inference";
+import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-const hfToken = process.env.HF_ACCESS_TOKEN;
-const hf = hfToken ? new InferenceClient(hfToken) : null;
-const DEFAULT_TEXT_MODELS = [
-  "mistralai/Mistral-7B-Instruct-v0.3",
-  "mistral-community/Mistral-7B-Instruct-v0.3",
-];
-const configuredTextModels = (process.env.HF_TEXT_MODEL || "")
-  .split(",")
-  .map((model) => model.trim())
-  .filter(Boolean);
-const HF_TEXT_MODELS = [...new Set([...configuredTextModels, ...DEFAULT_TEXT_MODELS])];
+const apiKey = process.env.GEMINI_API_KEY;
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
-const isModelUnavailableError = (error) => {
-  const status = error?.status || error?.response?.status;
-  const message = String(error?.message || "");
-  return status === 404 || status === 410 || /\b(404|410)\b/.test(message);
-};
-
-const createChatCompletion = async (messages, options = {}) => {
-  if (!hf) {
-    throw new Error('HF_ACCESS_TOKEN is missing. Add it to backend/.env before using LLM text generation.');
+const checkAI = () => {
+  if (!ai) {
+    throw new Error('GEMINI_API_KEY is missing. Add it to backend/.env before using LLM text generation.');
   }
-
-  let lastModelError;
-  for (const model of HF_TEXT_MODELS) {
-    try {
-      return await hf.chatCompletion({
-        model,
-        messages,
-        ...options,
-      });
-    } catch (error) {
-      if (!isModelUnavailableError(error)) {
-        throw error;
-      }
-
-      lastModelError = error;
-      console.warn(`Hugging Face text model unavailable: ${model}`, error.message);
-    }
-  }
-
-  throw lastModelError;
 };
 
 /**
@@ -54,99 +19,61 @@ const createChatCompletion = async (messages, options = {}) => {
  * @returns {Promise<{title: string | null, description: string | null, estimatedDuration: number | null, chapters: Array<{title: string, order: number, objective: string}>}>}
  */
 export const generateCourseOutline = async (topic, depth) => {
+  checkAI();
+
   const systemPrompt = `You are an expert curriculum designer. 
 You MUST generate a course syllabus for a ${depth} level course on "${topic}".
-You MUST respond with ONLY valid JSON and nothing else. No markdown wrappers, no intro text.
-The desired output format is a single JSON object with course metadata and a chapters array:
-{
-  "title": "A concise, engaging course title",
-  "description": "A 2-3 sentence description of what the course covers and who it is for.",
-  "estimatedDuration": 4.5,
-  "chapters": [
-    {
-      "title": "Chapter Heading",
-      "order": 1,
-      "objective": "A short 1-sentence description of the chapter."
-    }
-  ]
-}
-estimatedDuration is in hours. Base it on the depth level and number of chapters.`;
+estimatedDuration should be in hours. Base it on the depth level and number of chapters.`;
+
+  const responseSchema = {
+    type: Type.OBJECT,
+    properties: {
+      title: { type: Type.STRING, description: "A concise, engaging course title" },
+      description: { type: Type.STRING, description: "A 2-3 sentence description of what the course covers and who it is for." },
+      estimatedDuration: { type: Type.NUMBER, description: "Estimated duration in hours" },
+      chapters: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING, description: "Chapter Heading" },
+            order: { type: Type.INTEGER, description: "The numerical order of the chapter (1, 2, 3...)" },
+            objective: { type: Type.STRING, description: "A short 1-sentence description of the chapter." }
+          },
+          required: ["title", "order", "objective"]
+        }
+      }
+    },
+    required: ["title", "description", "estimatedDuration", "chapters"]
+  };
 
   try {
-    // using chatCompletion for better instruction following
-    const response = await createChatCompletion(
-      [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `Generate the syllabus for ${topic}. Return ONLY the JSON object.` }
-      ],
-      {
-        max_tokens: 1500,
-        temperature: 0.2, // Keep temperature low so it is predictable JSON
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: `Generate the syllabus for ${topic}.`,
+      config: {
+        systemInstruction: systemPrompt,
+        temperature: 0.2, // Keep temperature low so it is predictable
+        responseMimeType: "application/json",
+        responseSchema: responseSchema,
       }
-    );
+    });
 
-    let jsonText = response.choices[0].message.content.trim();
-
-
-    // donot know about this one.
-    // Safety check: sometimes LLMs still wrap JSON in markdown block even when told not to.
-    if (jsonText.startsWith("```json")) {
-      jsonText = jsonText.replace(/```json\n?/, "").replace(/```$/, "").trim();
-    } else if (jsonText.startsWith("```")) {
-      jsonText = jsonText.replace(/```\n?/, "").replace(/```$/, "").trim();
-    }
-
-    // Try to parse the result. If this fails, it goes to the catch block
-    const parsed = JSON.parse(jsonText);
-
-    // Backward compatibility: if the LLM still returns a bare array, wrap it
-    if (Array.isArray(parsed)) {
-      return { title: null, description: null, estimatedDuration: null, chapters: parsed };
-    }
-
-    // Guard against null or non-object responses (e.g. LLM returns "null" or a primitive)
-    if (!parsed || typeof parsed !== 'object') {
-      throw new Error('LLM response is not a valid JSON object.');
-    }
-
-    // Validate the expected wrapper object shape
-    if (!parsed.chapters || !Array.isArray(parsed.chapters)) {
-      throw new Error('LLM response missing "chapters" array.');
-    }
-
-    // Parse estimatedDuration safely — LLM may return a string, null, or omit it entirely
-    let duration = null;
-    try {
-      const raw = Number(parsed.estimatedDuration);
-      if (Number.isFinite(raw) && raw > 0) {
-        duration = raw;
-      } else {
-        console.warn(`[LLM] Invalid or missing estimatedDuration:`, parsed.estimatedDuration);
-      }
-    } catch (error) {
-      console.error(`[LLM] Error parsing estimatedDuration:`, error);
-    }
-
-    const title =
-      typeof parsed.title === "string" && parsed.title.trim() ? parsed.title.trim() : null;
-    const description =
-      typeof parsed.description === "string" && parsed.description.trim() ? parsed.description.trim() : null;
+    const parsed = JSON.parse(response.text);
 
     return {
-      title,
-      description,
-      estimatedDuration: duration,
-      chapters: parsed.chapters,
+      title: parsed.title || null,
+      description: parsed.description || null,
+      estimatedDuration: parsed.estimatedDuration || null,
+      chapters: parsed.chapters || [],
     };
-
   } catch (error) {
-    console.error(`Error generating course outline from LLM with ${HF_TEXT_MODELS.join(", ")}:`, error);
+    console.error(`Error generating course outline from LLM with Gemini:`, error);
     throw new Error("Failed to generate outline from LLM. Check console for details.");
   }
 };
 
 
-// this thing is very similar to type script interface. Here we are defining the arguments passed and the return type of the function.
 /**
  * Generates the detailed content for a specific lesson/chapter
  * @param {string} courseTopic - The overall course topic
@@ -155,37 +82,40 @@ estimatedDuration is in hours. Base it on the depth level and number of chapters
  * @returns {Promise<{content: string, keyTakeaways: string[]}>}
  */
 export const generateLessonContent = async (courseTopic, chapterTitle, chapterObjective) => {
+  checkAI();
+
   const systemPrompt = `You are an expert technical writer and educator.
 Topic: ${courseTopic}
 Chapter: ${chapterTitle}
-Objective: ${chapterObjective}
+Objective: ${chapterObjective}`;
 
-You MUST output ONLY valid JSON.
-The JSON must have this exact structure:
-{
-  "content": "A detailed, comprehensive markdown-formatted explanation of the lesson material. Include code examples if applicable.",
-  "keyTakeaways": ["point 1", "point 2", "point 3"]
-}`;
+  const responseSchema = {
+    type: Type.OBJECT,
+    properties: {
+      content: { type: Type.STRING, description: "A detailed, comprehensive markdown-formatted explanation of the lesson material. Include code examples if applicable." },
+      keyTakeaways: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING, description: "A key point to remember" }
+      }
+    },
+    required: ["content", "keyTakeaways"]
+  };
 
   try {
-    const response = await createChatCompletion(
-      [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: "Generate the lesson content and key takeaways based on the chapter details. Return ONLY JSON." }
-      ],
-      {
-        max_tokens: 3000,
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: "Generate the lesson content and key takeaways based on the chapter details.",
+      config: {
+        systemInstruction: systemPrompt,
         temperature: 0.3,
+        responseMimeType: "application/json",
+        responseSchema: responseSchema,
       }
-    );
+    });
 
-    let jsonText = response.choices[0].message.content.trim();
-    if (jsonText.startsWith("```json")) jsonText = jsonText.replace(/```json\n?/, "").replace(/```$/, "").trim();
-    else if (jsonText.startsWith("```")) jsonText = jsonText.replace(/```\n?/, "").replace(/```$/, "").trim();
-
-    return JSON.parse(jsonText);
+    return JSON.parse(response.text);
   } catch (error) {
-    console.error(`Error generating lesson content for ${chapterTitle} with ${HF_TEXT_MODELS.join(", ")}:`, error);
+    console.error(`Error generating lesson content for ${chapterTitle} with Gemini:`, error);
     throw new Error("Failed to generate lesson content.");
   }
 };
@@ -197,40 +127,43 @@ The JSON must have this exact structure:
  * @returns {Promise<Array<{type: string, question: string, options: string[], answer: string, explanation: string, difficulty: string}>>}
  */
 export const generateQuiz = async (courseTopic, lessonContent) => {
+  checkAI();
+
   const systemPrompt = `You are an expert educator.
-Based strictly on the provided lesson material about ${courseTopic}, generate a 3-question multiple-choice quiz.
-You MUST output ONLY valid JSON.
-The JSON must be an array of objects matching this exact structure:
-[
-  {
-    "type": "MCQ",
-    "question": "What is...?",
-    "options": ["A", "B", "C", "D"],
-    "answer": "A",
-    "explanation": "A is correct because...",
-    "difficulty": "Intermediate"
-  }
-]`;
+Based strictly on the provided lesson material about ${courseTopic}, generate a 3-question multiple-choice quiz.`;
+
+  const responseSchema = {
+    type: Type.ARRAY,
+    description: "An array of 3 multiple choice questions",
+    items: {
+      type: Type.OBJECT,
+      properties: {
+        type: { type: Type.STRING, description: "Always return 'MCQ'" },
+        question: { type: Type.STRING, description: "The quiz question" },
+        options: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Exactly 4 multiple choice options" },
+        answer: { type: Type.STRING, description: "The exact string from the options array that is the correct answer" },
+        explanation: { type: Type.STRING, description: "A brief explanation of why the answer is correct" },
+        difficulty: { type: Type.STRING, description: "E.g., 'Normal', 'Intermediate', 'Hard'" }
+      },
+      required: ["type", "question", "options", "answer", "explanation", "difficulty"]
+    }
+  };
 
   try {
-    const response = await createChatCompletion(
-      [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `Here is the lesson content:\n\n${lessonContent}\n\nGenerate the quiz JSON now.` }
-      ],
-      {
-        max_tokens: 1500,
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: `Here is the lesson content:\n\n${lessonContent}\n\nGenerate the quiz now.`,
+      config: {
+        systemInstruction: systemPrompt,
         temperature: 0.2, // Low temperature to stick closely to facts in the content
+        responseMimeType: "application/json",
+        responseSchema: responseSchema,
       }
-    );
+    });
 
-    let jsonText = response.choices[0].message.content.trim();
-    if (jsonText.startsWith("```json")) jsonText = jsonText.replace(/```json\n?/, "").replace(/```$/, "").trim();
-    else if (jsonText.startsWith("```")) jsonText = jsonText.replace(/```\n?/, "").replace(/```$/, "").trim();
-
-    return JSON.parse(jsonText);
+    return JSON.parse(response.text);
   } catch (error) {
-    console.error(`Error generating quiz with ${HF_TEXT_MODELS.join(", ")}:`, error);
+    console.error(`Error generating quiz with Gemini:`, error);
     throw new Error("Failed to generate quiz.");
   }
 };
