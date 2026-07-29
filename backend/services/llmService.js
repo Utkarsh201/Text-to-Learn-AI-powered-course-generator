@@ -81,7 +81,7 @@ estimatedDuration should be in hours. Base it on the depth level and number of c
  * @param {string} chapterObjective - The objective of the chapter
  * @returns {Promise<{content: string, keyTakeaways: string[]}>}
  */
-export const generateLessonContent = async (courseTopic, chapterTitle, chapterObjective) => {
+export const zgenerateLessonContent = async (courseTopic, chapterTitle, chapterObjective) => {
   checkAI();
 
   const systemPrompt = `You are an expert technical writer and educator.

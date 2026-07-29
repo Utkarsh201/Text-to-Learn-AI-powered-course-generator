@@ -83,6 +83,44 @@ export const handleCourseWebhook = async (req, res) => {
         data: { status: "RUNNING" },
       });
 
+      // ── Idempotency check ──
+      // If this is a QStash retry, chapters may already exist from a previous
+      // partial attempt. Check first to avoid duplicates.
+      const existingChapters = await prisma.chapter.findMany({
+        where: { courseId },
+        include: { lessons: true },
+        orderBy: { order: "asc" },
+      });
+
+      if (existingChapters.length > 0) {
+        // Chapters already exist — skip LLM call and chapter creation.
+        // Only re-enqueue chapter jobs for chapters that don't have lessons yet.
+        console.log(
+          `[Webhook] Retry detected: ${existingChapters.length} chapters already exist. Re-enqueuing incomplete ones.`
+        );
+
+        for (const chapter of existingChapters) {
+          if (chapter.lessons.length === 0) {
+            await publishStep({
+              type: "generateChapter",
+              generationRunId,
+              courseId,
+              chapterId: chapter.id,
+              expectedChapterCount: existingChapters.length,
+              topic,
+              chapterTitle: chapter.title,
+              chapterObjective: chapter.objective,
+            });
+          }
+        }
+
+        return res.status(200).json({
+          success: true,
+          message: "Retry: re-enqueued incomplete chapters",
+        });
+      }
+
+      // ── First attempt: generate outline from LLM ──
       const {
         title: courseTitle,
         description: courseDescription,
@@ -324,20 +362,45 @@ export const handleCourseWebhook = async (req, res) => {
   } catch (error) {
     console.error(`[Webhook] Error during [${type}]:`, error);
 
-    // Mark the generation run as FAILED
+    // QStash sends the current retry count in the `upstash-retried` header.
+    // We configured retries: 3 when publishing, so max retried value is 3.
+    // Only mark as FAILED on the FINAL attempt — otherwise QStash will retry
+    // and the next attempt can succeed, naturally resetting the status.
+    const retriedCount = parseInt(req.headers["upstash-retried"] || "0", 10);
+    const maxRetries = 3;
+    const isLastAttempt = retriedCount >= maxRetries;
+
     if (generationRunId) {
       try {
-        await prisma.generationRun.update({
-          where: { id: generationRunId },
-          data: {
-            status: "FAILED",
-            error: error.message,
-            completedAt: new Date(),
-          },
-        });
+        if (isLastAttempt) {
+          // Final attempt failed — mark as permanently FAILED
+          await prisma.generationRun.update({
+            where: { id: generationRunId },
+            data: {
+              status: "FAILED",
+              error: error.message,
+              completedAt: new Date(),
+            },
+          });
+          console.error(
+            `[Webhook] Final retry exhausted for run ${generationRunId}. Marked FAILED.`
+          );
+        } else {
+          // Transient failure — log error but keep status as RUNNING
+          // so the next retry can pick up where it left off
+          await prisma.generationRun.update({
+            where: { id: generationRunId },
+            data: {
+              error: `Retrying [${type}] (attempt ${retriedCount + 1}/${maxRetries + 1}): ${error.message}`,
+            },
+          });
+          console.log(
+            `[Webhook] Transient error on run ${generationRunId}. QStash will retry (${retriedCount + 1}/${maxRetries + 1}).`
+          );
+        }
       } catch (markError) {
         console.error(
-          `[Webhook] Failed to mark run ${generationRunId} as FAILED:`,
+          `[Webhook] Failed to update status for run ${generationRunId}:`,
           markError.message
         );
       }

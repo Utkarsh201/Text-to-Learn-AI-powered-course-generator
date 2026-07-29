@@ -1,40 +1,36 @@
-// Load environment variables FIRST — before any module reads process.env at import time
 import 'dotenv/config';
 
 import express from 'express';
 import cors from 'cors';
 
-// Import Routes
 import authRoutes from './routes/auth.js';
 import searchRoutes from './routes/search.js';
 import courseRoutes from './routes/course.js';
 import webhookRoutes from './routes/webhook.js';
 import prisma from './prisma/client.js';
 
-// Import Error Handler
 import { errorHandler } from './middlewares/errorHandler.js';
 
 const app = express();
 
-// CORS Configuration
 const corsOptions = {
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  // Setting credentials: true tells the browser: "It is safe to send cookies, authorization headers, or TLS client certificates back and forth with this specific backend.
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
-  // authorization is to send the berar token to the backend
-  // content-type is to tell the backend what type of content
 };
 
-// Middleware
 app.use(cors(corsOptions));
-app.use(express.json());
+// This is critical because QStash signs the raw body — if we re-serialize
+// with JSON.stringify(req.body), whitespace/key-order differences break verification.
+app.use(express.json({
+  verify: (req, _res, buf) => {
+    req.rawBody = buf.toString();
+  }
+}));
 
-// express.urlencoded() parses incoming requests where the payload is formatted as a URL-encoded string
 app.use(express.urlencoded({ extended: true }));
 
-// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/courses', courseRoutes);
