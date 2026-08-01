@@ -7,7 +7,7 @@ import MainContent from "./pages/maincontent";
 import SignupPage from "./pages/SignupPage";
 import { auth0Config } from "./config/auth";
 import { useCourseGeneration } from "./hooks/useCourseGeneration";
-import { revealQuizAnswers, syncUserProfile } from "./services/courseService";
+import { getCourseById, revealQuizAnswers, syncUserProfile } from "./services/courseService";
 
 function AuthSetupNotice() {
   return (
@@ -68,6 +68,7 @@ function AuthenticatedApp() {
   const [pendingTopic, setPendingTopic] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeCourse, setActiveCourse] = useState(null);
+  const [isLoadingCourse, setIsLoadingCourse] = useState(false);
 
   const getToken = useCallback(() => {
     return getAccessTokenSilently({
@@ -128,6 +129,27 @@ function AuthenticatedApp() {
       isCurrent = false;
     };
   }, [getToken, isAuthenticated]);
+
+  const openCourse = useCallback(async (courseOrId) => {
+    const courseId = typeof courseOrId === "string" ? courseOrId : courseOrId?.id;
+    if (!courseId) return;
+
+    try {
+      setIsLoadingCourse(true);
+      const token = await getToken();
+      const fullCourse = await getCourseById({ token, courseId });
+      setActiveCourse(fullCourse);
+      setView("course");
+    } catch (error) {
+      console.error("Failed to load full course details:", error);
+      if (typeof courseOrId === "object" && courseOrId !== null) {
+        setActiveCourse(courseOrId);
+        setView("course");
+      }
+    } finally {
+      setIsLoadingCourse(false);
+    }
+  }, [getToken]);
 
   const openCourseSettings = useCallback((topic) => {
     const cleanTopic = topic.trim();
@@ -202,10 +224,8 @@ function AuthenticatedApp() {
           latestCourse={activeCourse || generation.course}
           onCreateCourse={openCourseSettings}
           onLogout={logoutUser}
-          onOpenCourse={(course) => {
-            setActiveCourse(course);
-            setView("course");
-          }}
+          onOpenCourse={openCourse}
+          isLoadingCourse={isLoadingCourse}
           syncError={syncError}
           user={user}
         />

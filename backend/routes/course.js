@@ -1,5 +1,7 @@
 import express from 'express';
-import { generateCourse, getGenerationStatus, getUserCourses, getCourseById, revealQuizAnswers } from '../controllers/courseController.js';
+import { generateCourse, getGenerationStatus } from '../controllers/generationController.js';
+import { getUserCourses, getCourseById, revealQuizAnswers } from '../controllers/courseReadController.js';
+import { deleteCourse } from '../controllers/courseDeleteController.js';
 import { checkJwt } from '../middlewares/auth.js';
 
 const router = express.Router();
@@ -20,5 +22,10 @@ router.get('/:courseId', checkJwt, getCourseById);
 
 // Reveal quiz answers for a specific quiz in a course
 router.get('/:courseId/quiz/:quizId/reveal', checkJwt, revealQuizAnswers);
+
+// ── Course Deletion ──
+
+// Delete an entire course and its nested content
+router.delete('/:courseId', checkJwt, deleteCourse);
 
 export default router;

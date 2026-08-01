@@ -336,7 +336,7 @@ export default function MainContent({ course = dummyCourse, onBack, onRevealQuiz
               </div>
             ) : (
               <p className="mt-4 text-sm text-on-surface-variant">
-                Video references are placeholder-only for now. The backend model exists, but generation is not wired yet.
+                No video references available for this lesson.
               </p>
             )}
           </section>

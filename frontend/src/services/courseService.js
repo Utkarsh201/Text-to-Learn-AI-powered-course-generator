@@ -19,7 +19,7 @@ export const generateCourse = ({ token, topic, settings }) => {
       language: "ENGLISH",
       options: {
         quiz: Boolean(settings?.includeQuizzes),
-        videoReferences: false,
+        videoReferences: Boolean(settings?.includeVideoReferences),
         pdf: false,
       },
     },
@@ -41,3 +41,11 @@ export const revealQuizAnswers = ({ token, courseId, quizId }) => {
 export const getUserCourses = ({ token, page = 1, limit = 20 }) => {
   return request(`/api/courses?page=${page}&limit=${limit}`, { token });
 };
+
+export const deleteCourse = ({ token, courseId }) => {
+  return request(`/api/courses/${courseId}`, {
+    method: "DELETE",
+    token,
+  });
+};
+
