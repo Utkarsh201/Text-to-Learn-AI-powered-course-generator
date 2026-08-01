@@ -38,9 +38,6 @@ export const request = async (
   return parseResponse(response);
 };
 
-  return parseResponse(response);
-};
-
 export const uploadForm = async (endpoint, formData, token) => {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method: "POST",

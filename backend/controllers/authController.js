@@ -45,6 +45,20 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({ error: authError.message });
     }
 
+    // Auth0 may omit email if the 'email' scope/claim is not configured.
+    // email is required & unique in our DB, so guard against undefined.
+    if (!userInfo.email || typeof userInfo.email !== 'string') {
+      return res.status(400).json({
+        error: "Auth0 did not return an email address. Ensure the 'email' scope is requested in your Auth0 configuration.",
+      });
+    }
+
+    if (!userInfo.email) {
+      return res.status(400).json({
+        error: "Auth0 did not return an email. Ensure the 'email' scope is requested.",
+      });
+    }
+
     let user = await prisma.user.findUnique({
       where: { auth0Id: userInfo.sub },
     });

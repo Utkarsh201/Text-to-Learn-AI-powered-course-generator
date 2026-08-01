@@ -76,6 +76,9 @@ model Chapter {
   lessons   Lesson[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Prevent duplicate chapters from concurrent QStash retries
+  @@unique([courseId, order])
 }
 
 model Lesson {
@@ -90,6 +93,9 @@ model Lesson {
   quiz            Quiz?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
+
+  // Prevent duplicate lessons from concurrent QStash retries
+  @@unique([chapterId, order])
 }
 
 model VideoReference {

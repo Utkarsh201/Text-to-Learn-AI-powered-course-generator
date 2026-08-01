@@ -110,6 +110,11 @@ export const generateCourse = async (req, res) => {
     generationRunId = generationRun.id;
 
     // Publish to QStash — it will POST back to our webhook endpoint
+    if (!process.env.QSTASH_CALLBACK_URL) {
+      throw new Error(
+        'QSTASH_CALLBACK_URL is not set. Add it to your .env file (e.g. your ngrok or deployed URL).'
+      );
+    }
     const callbackUrl = `${process.env.QSTASH_CALLBACK_URL}/api/webhooks/course`;
 
     await qstashClient.publishJSON({

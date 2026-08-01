@@ -5,6 +5,7 @@ import {
   generateCourseOutline,
   generateLessonContent,
   generateQuiz,
+  generateVideoReferences,
 } from "../services/llmService.js";
 
 // ── QStash Signature Verification ──
@@ -20,6 +21,11 @@ const receiver = new Receiver({
  * QStash will POST the payload back to our webhook endpoint.
  */
 const publishStep = async (payload) => {
+  if (!process.env.QSTASH_CALLBACK_URL) {
+    throw new Error(
+      'QSTASH_CALLBACK_URL is not set. Add it to your .env file (e.g. your ngrok or deployed URL).'
+    );
+  }
   const callbackUrl = `${process.env.QSTASH_CALLBACK_URL}/api/webhooks/course`;
 
   await qstashClient.publishJSON({
@@ -32,9 +38,12 @@ const publishStep = async (payload) => {
 /**
  * Main webhook handler — receives HTTP POST from QStash for each step.
  *
- * Each step (generateOutline, generateChapter, generateQuiz) is its own
- * HTTP request. If a step fails, QStash retries ONLY that step — already
- * completed steps (saved in Postgres) are never re-executed.
+ * Each step (generateOutline, generateChapter) is its own HTTP request.
+ * If a step fails, QStash retries ONLY that step — already completed
+ * steps (saved in Postgres) are never re-executed.
+ *
+ * Quiz and video references are generated per-chapter inside generateChapter,
+ * eliminating the separate generateQuiz step and the race condition.
  */
 export const handleCourseWebhook = async (req, res) => {
   try {
@@ -64,11 +73,13 @@ export const handleCourseWebhook = async (req, res) => {
     courseId,
     topic,
     depth,
+    language,
     chapterId,
     chapterTitle,
     chapterObjective,
     expectedChapterCount,
-    lessonContent,
+    includeQuizzes,
+    includeVideoReferences,
   } = req.body;
 
   try {
@@ -108,8 +119,12 @@ export const handleCourseWebhook = async (req, res) => {
               chapterId: chapter.id,
               expectedChapterCount: existingChapters.length,
               topic,
+              depth,
+              language,
               chapterTitle: chapter.title,
               chapterObjective: chapter.objective,
+              includeQuizzes,
+              includeVideoReferences,
             });
           }
         }
@@ -126,7 +141,7 @@ export const handleCourseWebhook = async (req, res) => {
         description: courseDescription,
         estimatedDuration,
         chapters: outline,
-      } = await generateCourseOutline(topic, depth);
+      } = await generateCourseOutline(topic, depth, language);
 
       if (!outline || outline.length === 0) {
         throw new Error("LLM returned an empty outline. Aborting.");
@@ -162,8 +177,12 @@ export const handleCourseWebhook = async (req, res) => {
           chapterId: createdChapter.id,
           expectedChapterCount: outline.length,
           topic,
+          depth,
+          language,
           chapterTitle: chapter.title,
           chapterObjective: chapter.objective,
+          includeQuizzes,
+          includeVideoReferences,
         });
       }
 
@@ -175,23 +194,33 @@ export const handleCourseWebhook = async (req, res) => {
 
     // ────────────────────────────────────────────────
     // STEP TYPE: generateChapter
+    // Generates: lesson content + quiz (if enabled) + video refs (if enabled)
+    // All in one step per chapter — no race conditions, no separate quiz step.
     // ────────────────────────────────────────────────
     if (type === "generateChapter") {
       console.log(`[Webhook] Generating content for chapter: ${chapterTitle}`);
 
+      // ── 1. Generate lesson content ──
       const contentData = await generateLessonContent(
         topic,
         chapterTitle,
-        chapterObjective
+        chapterObjective,
+        depth,
+        language
       );
 
-      // Upsert pattern: if a lesson already exists (from a previous
-      // delivery attempt), update it instead of creating a duplicate.
+      // Validate lesson content
+      if (!contentData?.content || typeof contentData.content !== "string" || !contentData.content.trim()) {
+        throw new Error(`LLM returned invalid lesson content for chapter: ${chapterTitle}`);
+      }
+
+      // ── 2. Save lesson (upsert pattern for retry safety) ──
       const existingLesson = await prisma.lesson.findFirst({
         where: { chapterId, order: 1 },
         select: { id: true },
       });
 
+      let lessonId;
       if (existingLesson) {
         await prisma.lesson.update({
           where: { id: existingLesson.id },
@@ -201,8 +230,9 @@ export const handleCourseWebhook = async (req, res) => {
             keyTakeaways: contentData.keyTakeaways || [],
           },
         });
+        lessonId = existingLesson.id;
       } else {
-        await prisma.lesson.create({
+        const newLesson = await prisma.lesson.create({
           data: {
             title: chapterTitle,
             content: contentData.content,
@@ -211,149 +241,144 @@ export const handleCourseWebhook = async (req, res) => {
             chapterId,
           },
         });
+        lessonId = newLesson.id;
       }
 
-      // ── Check if all chapters are done ──
+      // ── 3. Generate quiz for THIS chapter (if enabled) ──
+      let quizSavedSuccessfully = false;
+      if (includeQuizzes) {
+        console.log(`[Webhook] Generating quiz for chapter: ${chapterTitle}`);
+
+        const quizQuestions = await generateQuiz(topic, contentData.content, depth, language);
+
+        if (Array.isArray(quizQuestions)) {
+          const validQuestions = quizQuestions.filter((q) => {
+            return (
+              q &&
+              typeof q.question === "string" &&
+              q.question.trim() &&
+              typeof q.answer === "string" &&
+              q.answer.trim()
+            );
+          });
+
+          if (validQuestions.length > 0) {
+            // Upsert quiz — safe for duplicate deliveries
+            let quiz = await prisma.quiz.findUnique({
+              where: { lessonId },
+            });
+            if (!quiz) {
+              quiz = await prisma.quiz.create({
+                data: { lessonId },
+              });
+            }
+
+            // Clear any existing questions (idempotent on retry)
+            await prisma.quizQuestion.deleteMany({
+              where: { quizId: quiz.id },
+            });
+
+            for (const question of validQuestions) {
+              await prisma.quizQuestion.create({
+                data: {
+                  quizId: quiz.id,
+                  type: question.type || "FILL_BLANK",
+                  question: question.question,
+                  options: [], // No options for fill-in-the-blank
+                  answer: question.answer,
+                  explanation: question.explanation,
+                  difficulty: question.difficulty || "Normal",
+                },
+              });
+            }
+            quizSavedSuccessfully = true;
+            console.log(`[Webhook] Quiz saved for chapter: ${chapterTitle} (${validQuestions.length} questions)`);
+          } else {
+            console.warn(`[Webhook] No valid quiz questions returned for chapter: ${chapterTitle}`);
+          }
+        } else {
+          console.warn(`[Webhook] generateQuiz did not return an array for chapter: ${chapterTitle}`);
+        }
+
+        // Attach a warning to the run if quizzes were requested but none saved
+        if (!quizSavedSuccessfully) {
+          const warningMsg = `Warning: quiz generation produced no valid questions for chapter "${chapterTitle}".`;
+          try {
+            const run = await prisma.generationRun.findUnique({
+              where: { id: generationRunId },
+              select: { error: true },
+            });
+            const existingWarnings = run?.error || "";
+            await prisma.generationRun.update({
+              where: { id: generationRunId },
+              data: {
+                error: existingWarnings
+                  ? `${existingWarnings}\n${warningMsg}`
+                  : warningMsg,
+              },
+            });
+          } catch (warnErr) {
+            console.error(`[Webhook] Failed to attach quiz warning:`, warnErr.message);
+          }
+        }
+      }
+
+      // ── 4. Generate video references for THIS chapter (if enabled) ──
+      if (includeVideoReferences) {
+        console.log(`[Webhook] Generating video references for chapter: ${chapterTitle}`);
+
+        const videoRefs = await generateVideoReferences(topic, chapterTitle, contentData.content, language);
+
+        if (Array.isArray(videoRefs) && videoRefs.length > 0) {
+          // Clear existing video refs for this lesson (idempotent on retry)
+          await prisma.videoReference.deleteMany({
+            where: { lessonId },
+          });
+
+          for (const ref of videoRefs) {
+            if (ref?.title && ref?.url) {
+              await prisma.videoReference.create({
+                data: {
+                  lessonId,
+                  title: ref.title,
+                  platform: ref.platform || "YouTube",
+                  url: ref.url,
+                  reason: ref.reason || null,
+                },
+              });
+            }
+          }
+          console.log(`[Webhook] Video references saved for chapter: ${chapterTitle} (${videoRefs.length} refs)`);
+        }
+      }
+
+      // ── 5. Check if all chapters are done ──
       const chapterCount = Number.isInteger(expectedChapterCount)
         ? expectedChapterCount
         : await prisma.chapter.count({ where: { courseId } });
 
       const chaptersWithLessons = await prisma.chapter.findMany({
         where: { courseId },
-        include: { lessons: true },
+        include: { lessons: { select: { id: true } } },
       });
       const finishedChapters = chaptersWithLessons.filter(
         (ch) => ch.lessons.length > 0
       ).length;
 
       if (finishedChapters === chapterCount) {
-        const run = await prisma.generationRun.findUnique({
+        // All chapters done — mark the entire run as COMPLETED
+        await prisma.generationRun.update({
           where: { id: generationRunId },
-          select: { includeQuizzes: true },
+          data: { status: "COMPLETED", completedAt: new Date(), error: null },
         });
-
-        if (!run) {
-          throw new Error(`Generation run not found: ${generationRunId}`);
-        }
-
-        if (!run.includeQuizzes) {
-          await prisma.generationRun.update({
-            where: { id: generationRunId },
-            data: { status: "COMPLETED", completedAt: new Date(), error: null },
-          });
-          console.log(
-            `[Webhook] Quiz disabled. Run ${generationRunId} marked COMPLETED.`
-          );
-          return res.status(200).json({
-            success: true,
-            message: `All chapters completed; run finalized without quiz`,
-          });
-        }
-
         console.log(
-          `[Webhook] All chapters done for course ${courseId}. Queueing quiz.`
+          `[Webhook] All chapters completed for course ${courseId}. Run ${generationRunId} marked COMPLETED.`
         );
-
-        const allLessons = await prisma.lesson.findMany({
-          where: { chapter: { courseId } },
-          orderBy: { order: "asc" },
-        });
-        const fullContent = allLessons
-          .map((lesson) => lesson.content)
-          .join("\n\n");
-
-        await publishStep({
-          type: "generateQuiz",
-          generationRunId,
-          courseId,
-          topic,
-          lessonContent: fullContent,
-        });
       }
 
       return res.status(200).json({
         success: true,
         message: `Chapter ${chapterTitle} completed`,
-      });
-    }
-
-    // ────────────────────────────────────────────────
-    // STEP TYPE: generateQuiz
-    // ────────────────────────────────────────────────
-    if (type === "generateQuiz") {
-      console.log(`[Webhook] Generating quiz for course: ${courseId}`);
-
-      const quizQuestions = await generateQuiz(topic, lessonContent);
-      if (!Array.isArray(quizQuestions)) {
-        throw new Error(
-          "Quiz generator returned invalid format (expected an array)."
-        );
-      }
-
-      const validQuestions = quizQuestions.filter((q) => {
-        return (
-          q &&
-          typeof q.question === "string" &&
-          q.question.trim() &&
-          Array.isArray(q.options) &&
-          q.options.length > 0 &&
-          typeof q.answer === "string" &&
-          q.answer.trim()
-        );
-      });
-
-      if (validQuestions.length === 0) {
-        throw new Error("LLM returned no valid quiz questions.");
-      }
-
-      const firstLesson = await prisma.lesson.findFirst({
-        where: { chapter: { courseId } },
-        orderBy: { createdAt: "asc" },
-      });
-      if (!firstLesson) {
-        throw new Error("Cannot generate quiz: No lessons exist.");
-      }
-
-      // Upsert quiz — safe for duplicate deliveries
-      let createdQuiz = await prisma.quiz.findUnique({
-        where: { lessonId: firstLesson.id },
-      });
-      if (!createdQuiz) {
-        createdQuiz = await prisma.quiz.create({
-          data: { lessonId: firstLesson.id },
-        });
-      }
-
-      // Clear any existing questions (idempotent: re-delivery replaces, not duplicates)
-      await prisma.quizQuestion.deleteMany({
-        where: { quizId: createdQuiz.id },
-      });
-
-      for (const question of validQuestions) {
-        await prisma.quizQuestion.create({
-          data: {
-            quizId: createdQuiz.id,
-            type: question.type || "MCQ",
-            question: question.question,
-            options: question.options,
-            answer: question.answer,
-            explanation: question.explanation,
-            difficulty: question.difficulty || "Normal",
-          },
-        });
-      }
-
-      await prisma.generationRun.update({
-        where: { id: generationRunId },
-        data: { status: "COMPLETED", completedAt: new Date() },
-      });
-
-      console.log(
-        `[Webhook] Completely finished generation run for course ${courseId}.`
-      );
-      return res.status(200).json({
-        success: true,
-        message: "Quiz generated and course run completed!",
       });
     }
 
