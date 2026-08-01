@@ -36,6 +36,7 @@ export default function Homepage({
   isSyncingUser,
   latestCourse,
   onCreateCourse,
+  onCourseDeleted,
   onLogout,
   onOpenCourse,
   isLoadingCourse,
@@ -91,6 +92,9 @@ export default function Homepage({
       await deleteCourse({ token, courseId });
       setCourses((prev) => prev.filter((c) => c.id !== courseId));
       setCourseToDelete(null);
+      if (onCourseDeleted) {
+        onCourseDeleted(courseId);
+      }
     } catch (error) {
       console.error("Failed deleting course:", error);
       throw error;
@@ -330,14 +334,42 @@ export default function Homepage({
                 )}
 
                 {generation?.isGenerating && !isLoadingCourse && (
-                  <div className="flex items-start gap-3">
-                    <span className="material-symbols-outlined animate-pulse text-tertiary-fixed">progress_activity</span>
-                    <div>
-                      <p className="font-semibold text-on-surface">{statusCopy[generation.status] || generation.status}</p>
-                      <p className="mt-1 text-sm text-on-surface-variant">
-                        Keep this page open while the backend worker creates chapters, lessons, and quiz questions.
-                      </p>
+                  <div className="space-y-4 py-1">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-container-high border border-outline-variant/20 text-tertiary-fixed">
+                          <span className="material-symbols-outlined animate-spin text-lg">
+                            progress_activity
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-headline font-bold text-base text-on-surface tracking-tight">
+                            {generation.progressMessage || statusCopy[generation.status] || "Generating your custom learning guide..."}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-surface-container text-tertiary-fixed border border-outline-variant/20 shrink-0">
+                        {generation.progressStage === "HALFWAY"
+                          ? "Halfway There"
+                          : generation.progressStage === "ALMOST_DONE"
+                          ? "Almost Done"
+                          : generation.progressStage === "FINISHING"
+                          ? "Finishing Up"
+                          : "Generating"}
+                      </span>
                     </div>
+
+                    {/* ── Animated Qualitative Progress Bar ── */}
+                    <div className="w-full bg-surface-container rounded-full h-3.5 p-0.5 border border-outline-variant/20 overflow-hidden relative">
+                      <div
+                        className="bg-gradient-to-r from-tertiary via-tertiary-fixed to-primary h-full rounded-full transition-all duration-700 ease-out shadow-[0_0_12px_rgba(129,140,248,0.4)]"
+                        style={{ width: `${Math.max(8, generation.progressPercent || 10)}%` }}
+                      />
+                    </div>
+
+                    <p className="text-xs text-on-surface-variant leading-relaxed">
+                      Keep this tab open while our AI intelligence engine curates structured chapters, lesson summaries, and interactive quizzes tailored to your preferred depth.
+                    </p>
                   </div>
                 )}
 

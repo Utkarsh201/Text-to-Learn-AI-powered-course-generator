@@ -184,10 +184,68 @@ export const getGenerationStatus = async (req, res) => {
       return res.status(404).json({ error: 'Generation run not found.' });
     }
 
+    // Compute qualitative progress milestones without raw chapter numbers
+    let progressPercent = 10;
+    let progressStage = 'STARTING';
+    let progressMessage = 'Warming up the AI intelligence engine...';
+
+    if (run.status === 'COMPLETED') {
+      progressPercent = 100;
+      progressStage = 'COMPLETED';
+      progressMessage = 'Your course is ready!';
+    } else if (run.status === 'FAILED') {
+      progressPercent = 0;
+      progressStage = 'FAILED';
+      progressMessage = run.error || 'Generation failed';
+    } else if (run.status === 'RUNNING') {
+      if (run.courseId) {
+        const chapters = await prisma.chapter.findMany({
+          where: { courseId: run.courseId },
+          include: { _count: { select: { lessons: true } } },
+        });
+
+        const totalChapters = chapters.length;
+        const finishedChapters = chapters.filter((c) => c._count.lessons > 0).length;
+
+        if (totalChapters === 0) {
+          progressPercent = 20;
+          progressStage = 'DRAFTING_ROADMAP';
+          progressMessage = 'Drafting course roadmap & lesson foundations...';
+        } else {
+          const ratio = finishedChapters / totalChapters;
+          progressPercent = Math.min(96, Math.round(30 + ratio * 65));
+
+          if (ratio === 0) {
+            progressStage = 'DRAFTING_ROADMAP';
+            progressMessage = 'Drafting course roadmap & lesson foundations...';
+          } else if (ratio < 0.4) {
+            progressStage = 'PROGRESSING';
+            progressMessage = 'Synthesizing foundational concepts and structure...';
+          } else if (ratio < 0.7) {
+            progressStage = 'HALFWAY';
+            progressMessage = 'Halfway there! Synthesizing core concepts and insights...';
+          } else if (ratio < 0.95) {
+            progressStage = 'ALMOST_DONE';
+            progressMessage = 'Almost done! Crafting custom quizzes and study summaries...';
+          } else {
+            progressStage = 'FINISHING';
+            progressMessage = 'Adding finishing touches to your learning guide...';
+          }
+        }
+      } else {
+        progressPercent = 25;
+        progressStage = 'DRAFTING_ROADMAP';
+        progressMessage = 'Drafting course roadmap & lesson foundations...';
+      }
+    }
+
     res.json({
       status: run.status,
       error: run.error,
       completedAt: run.completedAt,
+      progressPercent,
+      progressStage,
+      progressMessage,
     });
   } catch (error) {
     console.error('Error fetching generation status:', error);

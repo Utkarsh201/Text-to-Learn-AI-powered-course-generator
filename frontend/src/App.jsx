@@ -179,6 +179,18 @@ function AuthenticatedApp() {
     [getToken]
   );
 
+  const handleCourseDeleted = useCallback(
+    (deletedCourseId) => {
+      if (activeCourse?.id === deletedCourseId) {
+        setActiveCourse(null);
+      }
+      if (generation?.course?.id === deletedCourseId || generation?.courseId === deletedCourseId) {
+        generation.resetGeneration();
+      }
+    },
+    [activeCourse?.id, generation]
+  );
+
   const authActions = useMemo(
     () => ({
       login: () => login("login"),
@@ -223,6 +235,7 @@ function AuthenticatedApp() {
           isSyncingUser={isSyncingUser}
           latestCourse={activeCourse || generation.course}
           onCreateCourse={openCourseSettings}
+          onCourseDeleted={handleCourseDeleted}
           onLogout={logoutUser}
           onOpenCourse={openCourse}
           isLoadingCourse={isLoadingCourse}

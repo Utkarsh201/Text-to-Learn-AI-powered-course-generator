@@ -14,6 +14,9 @@ export const useCourseGeneration = (getToken) => {
   const [status, setStatus] = useState("IDLE");
   const [error, setError] = useState(null);
   const [course, setCourse] = useState(null);
+  const [progressPercent, setProgressPercent] = useState(0);
+  const [progressStage, setProgressStage] = useState("IDLE");
+  const [progressMessage, setProgressMessage] = useState("");
 
   const clearPollTimer = useCallback(() => {
     if (pollTimerRef.current) {
@@ -40,6 +43,9 @@ export const useCourseGeneration = (getToken) => {
       setError(null);
       setCourse(null);
       setStatus("QUEUING");
+      setProgressPercent(5);
+      setProgressStage("QUEUING");
+      setProgressMessage("Sending your topic to the intelligence engine...");
 
       let result;
       try {
@@ -48,6 +54,8 @@ export const useCourseGeneration = (getToken) => {
       } catch (startError) {
         clearPollTimer();
         setStatus("FAILED");
+        setProgressPercent(0);
+        setProgressStage("FAILED");
         setError(startError.message || "Could not start course generation.");
         return null;
       }
@@ -55,6 +63,10 @@ export const useCourseGeneration = (getToken) => {
       setRunId(result.generationRunId);
       setCourseId(result.courseId);
       setStatus("PENDING");
+      setProgressPercent(10);
+      setProgressStage("STARTING");
+      setProgressMessage("Warming up the AI intelligence engine...");
+
       const pollStatus = async () => {
         try {
           const pollToken = await getToken();
@@ -63,15 +75,29 @@ export const useCourseGeneration = (getToken) => {
             runId: result.generationRunId,
           });
           setStatus(statusResult.status || "RUNNING");
+          if (typeof statusResult.progressPercent === "number") {
+            setProgressPercent(statusResult.progressPercent);
+          }
+          if (statusResult.progressStage) {
+            setProgressStage(statusResult.progressStage);
+          }
+          if (statusResult.progressMessage) {
+            setProgressMessage(statusResult.progressMessage);
+          }
 
           if (statusResult.status === "COMPLETED") {
             clearPollTimer();
+            setProgressPercent(100);
+            setProgressStage("COMPLETED");
+            setProgressMessage("Your course is ready!");
             await loadCourse(result.courseId);
             return;
           }
 
           if (statusResult.status === "FAILED") {
             clearPollTimer();
+            setProgressPercent(0);
+            setProgressStage("FAILED");
             setError(statusResult.error || "Course generation failed.");
             return;
           }
@@ -96,6 +122,9 @@ export const useCourseGeneration = (getToken) => {
     setStatus("IDLE");
     setError(null);
     setCourse(null);
+    setProgressPercent(0);
+    setProgressStage("IDLE");
+    setProgressMessage("");
   }, [clearPollTimer]);
 
   useEffect(() => clearPollTimer, [clearPollTimer]);
@@ -110,5 +139,8 @@ export const useCourseGeneration = (getToken) => {
     runId,
     startGeneration,
     status,
+    progressPercent,
+    progressStage,
+    progressMessage,
   };
 };

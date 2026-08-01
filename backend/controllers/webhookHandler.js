@@ -366,10 +366,29 @@ export const handleCourseWebhook = async (req, res) => {
       ).length;
 
       if (finishedChapters === chapterCount) {
-        // All chapters done — mark the entire run as COMPLETED
+        // All chapters done — check if any quiz warnings exist before marking COMPLETED
+        const run = await prisma.generationRun.findUnique({
+          where: { id: generationRunId },
+          select: { error: true },
+        });
+        let preservedWarnings = null;
+        if (run?.error) {
+          const warningLines = run.error
+            .split("\n")
+            .filter((line) => line.trim().startsWith("Warning:"))
+            .join("\n");
+          if (warningLines) {
+            preservedWarnings = warningLines;
+          }
+        }
+
         await prisma.generationRun.update({
           where: { id: generationRunId },
-          data: { status: "COMPLETED", completedAt: new Date(), error: null },
+          data: {
+            status: "COMPLETED",
+            completedAt: new Date(),
+            error: preservedWarnings,
+          },
         });
         console.log(
           `[Webhook] All chapters completed for course ${courseId}. Run ${generationRunId} marked COMPLETED.`
