@@ -2,6 +2,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import CourseSettingsPopup from "./pages/popup";
 import Homepage from "./pages/homepage";
+import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import MainContent from "./pages/maincontent";
 import SignupPage from "./pages/SignupPage";
@@ -61,7 +62,7 @@ function AuthenticatedApp() {
     user,
   } = useAuth0();
 
-  const [authMode, setAuthMode] = useState("signup");
+  const [authMode, setAuthMode] = useState("landing");
   const [syncError, setSyncError] = useState(null);
   const [isSyncingUser, setIsSyncingUser] = useState(false);
   const [view, setView] = useState("home");
@@ -205,17 +206,28 @@ function AuthenticatedApp() {
   }
 
   if (!isAuthenticated) {
+    if (authMode === "landing") {
+      return (
+        <LandingPage
+          onNavigateToLogin={() => setAuthMode("login")}
+          onNavigateToSignup={() => setAuthMode("signup")}
+        />
+      );
+    }
+
     return authMode === "login" ? (
       <LoginPage
         authError={authError?.message}
         onLogin={authActions.login}
         onSwitchToSignup={() => setAuthMode("signup")}
+        onBack={() => setAuthMode("landing")}
       />
     ) : (
       <SignupPage
         authError={authError?.message}
         onSignup={authActions.signup}
         onSwitchToLogin={() => setAuthMode("login")}
+        onBack={() => setAuthMode("landing")}
       />
     );
   }

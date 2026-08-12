@@ -1,4 +1,4 @@
-export default function SignupPage({ authError, onSignup, onSwitchToLogin }) {
+export default function SignupPage({ authError, onSignup, onSwitchToLogin, onBack }) {
   const handleGoogleSignup = () => {
     onSignup?.();
   };
@@ -11,12 +11,13 @@ export default function SignupPage({ authError, onSignup, onSwitchToLogin }) {
     <div className="min-h-screen bg-[linear-gradient(135deg,#0e0e0e_0%,#151616_48%,#0e0e0e_100%)] text-on-surface font-body selection:bg-tertiary-container selection:text-on-tertiary-container">
       {/* Header */}
       <header className="fixed left-0 top-0 z-50 flex w-full items-center justify-between px-6 py-6 sm:px-12 sm:py-8">
-        <a
-          href="#"
-          className="font-headline text-2xl font-black tracking-tight text-on-surface"
+        <button
+          onClick={onBack}
+          type="button"
+          className="font-headline text-2xl font-black tracking-tight text-on-surface hover:text-tertiary-fixed transition-colors"
         >
           Text to Learn
-        </a>
+        </button>
         <span
           className="material-symbols-outlined text-3xl text-tertiary-fixed"
           aria-hidden="true"
